@@ -1,10 +1,10 @@
-# 🌅 SUNRISE Project
+# SUNRISE Project
 
 AI-powered platform for generating and interacting with 3D assets using natural language.
 
 ---
 
-## 📌 Overview
+## Overview
 
 SUNRISE is a web-based system that enables users to generate, preview, and refine 3D models from simple text prompts.
 
@@ -15,7 +15,7 @@ The platform combines:
 
 ---
 
-## 🏗 Architecture
+## Architecture
 
 The system follows a modular, layered architecture:
 
