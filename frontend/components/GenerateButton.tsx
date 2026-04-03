@@ -22,6 +22,7 @@ export default function GenerateButton() {
     if (status === "submitted") buttonText = "Submitting...";
     if (status === "processing") buttonText = "Processing...";
     if (status === "success") buttonText = "Generate Another";
+    if (status === "error") buttonText = "Try Again";
 
     return (
         <button

@@ -98,15 +98,36 @@ export default function Home() {
                 </div>
               )}
               
-              {/* Test button: force status to success */}
-              <div className="mt-4 flex justify-center">
+              {/* We show this block ONLY if the status is "error" */}
+              {status === "error" && (
+                <div className="mt-8 flex justify-center">
+                  <div className="w-full max-w-[500px] rounded-[16px] border border-red-500/30 bg-red-500/10 px-6 py-4 text-center text-red-400">
+                    Oops! Something went wrong while generating the model. Please check your prompt and try again.
+                  </div>
+                </div>
+              )}
+              
+              {/* Button panel for developer testing */}
+              <div className="mt-10 flex justify-center gap-6 border-t border-white/10 pt-6">
                  <button 
                     onClick={() => useGenerationStore.getState().setStatus("success")}
-                    className="text-sm text-gray-500 underline"
+                    className="text-sm text-green-500/70 hover:text-green-400 transition"
                  >
-                    [Dev Test: Set Success]
+                    [Dev Test: Success]
                  </button>
-              </div>
+                 <button 
+                    onClick={() => useGenerationStore.getState().setStatus("error")}
+                    className="text-sm text-red-500/70 hover:text-red-400 transition"
+                 >
+                    [Dev Test: Error]
+                 </button>
+                 <button 
+                    onClick={() => useGenerationStore.getState().setStatus("idle")}
+                    className="text-sm text-gray-500 hover:text-white transition"
+                 >
+                    [Dev Test: Reset to Idle]
+                 </button>
+                </div>
 
             </div>
           </section>
