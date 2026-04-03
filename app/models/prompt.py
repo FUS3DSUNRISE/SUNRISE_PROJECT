@@ -1,0 +1,32 @@
+from datetime import datetime
+from app.extensions import db
+import enum
+
+
+
+class PromptStatus(enum.Enum):
+    QUEUED = "queued"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+class PromptRequest(db.Model):
+    __tablename__ = "prompt_requests"
+
+    id = db.Column(db.Integer, primary_key=True)
+    prompt_text = db.Column(db.String(255), nullable=False)
+    status = db.Column(db.Enum(PromptStatus), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow
+    )
+    result_path = db.Column(db.String(255), nullable=True)
+    error_message = db.Column(db.Text, nullable=True)
+
+
+
+    def __repr__(self):
+        return f"<PromptRequest {self.id}>"

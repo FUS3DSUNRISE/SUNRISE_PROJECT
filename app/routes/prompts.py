@@ -1,4 +1,6 @@
 from flask import Blueprint, request, jsonify
+from app.extensions import db
+from app.models.prompt import PromptRequest, PromptStatus
 
 prompts_bp = Blueprint("prompts", __name__)
 
@@ -12,11 +14,16 @@ def create_prompt():
             "message": "Missing prompt"
         }), 400 # bad request in http
 
-    prompt_text = data["prompt"]
+    prompt = PromptRequest(
+        prompt_text=data["prompt"],
+        status=PromptStatus.QUEUED
+    )
+
+    db.session.add(prompt)
+    db.session.commit()
 
     return jsonify({
-        "id": 1,
-        "prompt": prompt_text,
-        "status": "queued",
-        "message": "Prompt stored successfully"
+        "id": prompt.id,
+        "prompt": prompt.prompt_text,
+        "status": prompt.status.value
     }), 201 # created
