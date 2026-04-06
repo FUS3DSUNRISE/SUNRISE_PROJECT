@@ -107,9 +107,14 @@ export default function Home() {
                             {status === "success" && (
                                 <div className="mt-12 flex justify-center">
                                     <div className="w-full max-w-[500px] rounded-[20px] border border-white/10 bg-[#11131f]/70 px-8 py-7 text-center shadow-[0_10px_25px_rgba(0,0,0,0.25)]">
-                                        <button className="w-full rounded-[14px] border border-white/10 bg-[#171927] px-6 py-4 text-[22px] font-medium text-white transition hover:bg-white/5">
+                                        {/* Replace button with a link (a) that points to our file */}
+                                        <a 
+                                            href="/models/backpack.glb" 
+                                            download="sunrise_model.glb"
+                                            className="flex w-full items-center justify-center rounded-[14px] border border-white/10 bg-[#171927] px-6 py-4 text-[22px] font-medium text-white transition hover:bg-white/5"
+                                        >
                                             ↓ Download Model (glb)
-                                        </button>
+                                        </a>
 
                                         <p className="mt-6 text-[20px] text-white/75">
                                             Formats: GLB / FBX / OBJ

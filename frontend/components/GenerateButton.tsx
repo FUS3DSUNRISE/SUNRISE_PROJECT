@@ -46,11 +46,11 @@ export default function GenerateButton() {
 
     const buttonText =
         status === "submitted"
-            ? "Submitting..."
+            ? "Generating..." 
             : status === "processing"
-                ? "Processing..."
+                ? "Processing..." 
                 : status === "success"
-                    ? "Generate Another"
+                    ? "Generate Another" 
                     : status === "error"
                         ? "Try Again"
                         : "Generate 3D Model";
