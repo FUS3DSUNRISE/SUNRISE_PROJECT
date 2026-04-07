@@ -59,8 +59,7 @@ export default function GenerateButton() {
         <button
             onClick={handleGenerate}
             disabled={status === "submitted" || status === "processing"}
-            className="min-w-[560px] rounded-[20px] bg-[#4f5dff] px-10 py-5 text-[24px] font-semibold text-white shadow-[0_12px_30px_rgba(79,93,255,0.35)] transition hover:bg-[#5d69ff] disabled:cursor-not-allowed disabled:opacity-70"
-        >
+            className="w-full rounded-[18px] bg-[#ff8a2c] px-8 py-4 text-[20px] font-semibold text-black shadow-[0_12px_30px_rgba(255,138,44,0.28)] transition hover:bg-[#ff9b4d] disabled:cursor-not-allowed disabled:opacity-70">
             <span className="flex items-center justify-center gap-3">
                 {showSpinner && (
                     <span className="h-6 w-6 animate-spin rounded-full border-2 border-white/30 border-t-white" />
