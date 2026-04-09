@@ -26,6 +26,8 @@ class PromptRequest(db.Model):
     result_path = db.Column(db.String(255), nullable=True)
     error_message = db.Column(db.Text, nullable=True)
 
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+
 
 
     def __repr__(self):
