@@ -1,11 +1,17 @@
 from flask import Flask
 from app.extensions import db
 from app.routes.prompts import prompts_bp
+from flask_cors import CORS
+
+from app.models.user import User
+from app.models.prompt import PromptRequest
 
 
 
 def create_app():
     app = Flask(__name__)
+
+    CORS(app)
 
     app.config.from_object("config.Config")
     db.init_app(app)

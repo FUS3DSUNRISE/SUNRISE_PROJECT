@@ -1,6 +1,9 @@
 from flask import Blueprint, request, jsonify
 from app.extensions import db
 from app.models.prompt import PromptRequest, PromptStatus
+from app.models.user import User
+
+
 
 
 
@@ -19,13 +22,15 @@ def create_prompt():
         }), 400 # bad request in http
 
     prompt = PromptRequest(
-        prompt_text=data["prompt"],
-        status=PromptStatus.QUEUED
+    prompt_text=data["prompt"],
+    status=PromptStatus.QUEUED,
+    user_id=1 # for now, testing purposes
     )
 
     db.session.add(prompt)
     db.session.commit()
 
+    # needs to stay here otherwise there will be error
     from app.tasks.prompt_tasks import process_prompt_task
     process_prompt_task.delay(prompt.id)
 
@@ -48,9 +53,32 @@ def get_prompt(id):
         "prompt": prompt.prompt_text,
         "status": prompt.status.value,
         "result_path": prompt.result_path,
-        "error_message": prompt.error_message
+        "error_message": prompt.error_message,
+        "user_id": prompt.user_id,
+        "username": prompt.user.username
     })
 
+@prompts_bp.route("/user/<int:user_id>", methods=["GET"])
+def get_user_prompts(user_id):
+    user = User.query.get(user_id)
 
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    prompts = []
+    for prompt in user.prompts:
+        prompts.append({
+            "id": prompt.id,
+            "prompt": prompt.prompt_text,
+            "status": prompt.status.value,
+            "result_path": prompt.result_path,
+            "error_message": prompt.error_message
+        })
+
+    return jsonify({
+        "user_id": user.id,
+        "username": user.username,
+        "prompts": prompts
+    }), 200
 
 
