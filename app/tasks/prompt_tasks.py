@@ -139,7 +139,6 @@ import config
 
 @celery.task
 def process_prompt_task(prompt_id):
-    # Kreiramo aplikacijski kontekst da bi mogli pristupiti bazi
     from app import create_app
     app = create_app()
     
@@ -147,56 +146,47 @@ def process_prompt_task(prompt_id):
         prompt = PromptRequest.query.get(prompt_id)
 
         if not prompt:
-            print(f"Prompt sa ID-em {prompt_id} nije pronađen.")
+            print(f"Prompt with ID {prompt_id} not found.")
             return
         
         try:
-            # 1. Postavi status da je obrada u toku
             prompt.status = PromptStatus.PROCESSING
             db.session.commit()
 
-            # 2. Sigurno izvlačenje postavki iz config.py
             base_url = getattr(config, 'LLM_BASE_URL', getattr(config.Config, 'LLM_BASE_URL', "https://api.groq.com/openai/v1"))
             model_name = getattr(config, 'LLM_MODEL', getattr(config.Config, 'LLM_MODEL', "llama-3.3-70b-versatile"))
             api_key = getattr(config, 'LLM_API_KEY', getattr(config.Config, 'LLM_API_KEY', ""))
 
-            print(f"Povezujem se na LLM: {base_url} koristeći model {model_name}...")
+            print(f"Connecting on LLM: {base_url} using model {model_name}...")
 
-            # 3. Inicijalizacija LLM-a
             llm = ChatOpenAI(
                 base_url=base_url,
                 api_key=api_key,
                 model=model_name
             )
 
-            # 5. Poziv modelu
             response = llm.invoke([
                 ("system", system_msg),
                 ("human", prompt.prompt_text)
             ])
 
-            # Čišćenje koda od markdown oznaka ako ih LLM ipak ubaci
             generated_code = response.content.replace("```python", "").replace("```", "").strip()
 
             print("-" * 30)
-            print(f"GENERISANI KOD:\n{generated_code}")
+            print(f"Generated code:\n{generated_code}")
             print("-" * 30)
 
-            # 6. IZVRŠAVANJE U BLENDERU
             script_filename = f"temp_script_{prompt_id}.py"
             with open(script_filename, "w", encoding="utf-8") as f:
                 f.write(generated_code)
 
-            # Putanja do tvog blender.exe (PROVJERI DA LI JE OVO TAČNO KOD TEBE)
             blender_path = r"C:\Program Files\Blender Foundation\Blender 5.1\blender-launcher.exe"
 
-            # Provjera da li putanja postoji
             if not os.path.exists(blender_path):
-                raise Exception(f"Blender nije pronađen na lokaciji: {blender_path}")
+                raise Exception(f"Blender not found on location: {blender_path}")
 
-            print(f"Pokrećem Blender u pozadini...")
+            print(f"Starting Blender in basckground...")
             
-            # Pokretanje procesa
             result = subprocess.run([
                 blender_path,
                 "--background",
@@ -205,22 +195,19 @@ def process_prompt_task(prompt_id):
 
             if result.returncode != 0:
                 print(f"Blender Error Output: {result.stderr}")
-                raise Exception("Blender nije uspio izvršiti skriptu.")
+                raise Exception("Blender did not run the script successfully.")
 
-            # 7. Uspješan završetak i ažuriranje baze
             prompt.status = PromptStatus.COMPLETED
-            # Putanja koju će frontend učitati (relativna u odnosu na static)
             prompt.result_path = "/static/models/result.glb" 
             db.session.commit()
             
-            print(f"Zadatak {prompt_id} uspješno završen. Model je u app/static/models/result.glb")
+            print(f"Task {prompt_id} is done. Model is in app/static/models/result.glb")
 
-            # Obriši privremeni skript fajl
             if os.path.exists(script_filename):
                 os.remove(script_filename)
 
         except Exception as e:
-            print(f"Greška u obradi: {str(e)}")
+            print(f"Error: {str(e)}")
             prompt.status = PromptStatus.FAILED
             prompt.error_message = str(e)
             db.session.commit()
