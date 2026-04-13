@@ -22,6 +22,7 @@ export default function Home() {
     const prompt = useGenerationStore((s) => s.prompt);
     const setPrompt = useGenerationStore((s) => s.setPrompt);
     const errorMessage = useGenerationStore((s) => s.errorMessage);
+    const resultPath = useGenerationStore((s) => s.resultPath); // ADDED: extract path
     const reset = useGenerationStore((s) => s.reset);
 
     const [authModal, setAuthModal] = useState<null | "login" | "signup">(null);
@@ -30,6 +31,10 @@ export default function Home() {
 
     const selectedModelLabel =
         demoModels.find((model) => model.path === selectedModel)?.label ?? "Tiger";
+
+    // ADDED: Determine what to show in the 3D window.
+    // If the generation is successful and there is a path, we show the generated one. Otherwise, we show the demo model.
+    const currentModelToDisplay = status === "success" && resultPath ? resultPath : selectedModel;
 
     return (
         <main className="min-h-screen bg-transparent text-white">
@@ -81,8 +86,9 @@ export default function Home() {
                                         : "Hover to preview 3D model"}
                             </div>
 
+                            {/* UPDATED: Passing a dynamic variable instead of selectedModel */}
                             <div className="h-[380px] w-full lg:h-[460px]">
-                                <PreviewCanvas modelPath={selectedModel} />
+                                <PreviewCanvas modelPath={currentModelToDisplay} />
                             </div>
 
                             <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.04)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.04)_1px,transparent_1px)] bg-[size:60px_60px] opacity-25" />
@@ -128,8 +134,8 @@ export default function Home() {
                                                         setShowExamples(false);
                                                     }}
                                                     className={`rounded-xl border px-4 py-3 text-sm font-medium transition ${isActive
-                                                            ? "border-[#ff8a2c] bg-[#ff8a2c] text-black shadow-[0_8px_24px_rgba(255,138,44,0.25)]"
-                                                            : "border-white/10 bg-white/[0.03] text-white/75 hover:border-white/20 hover:bg-white/[0.06] hover:text-white"
+                                                        ? "border-[#ff8a2c] bg-[#ff8a2c] text-black shadow-[0_8px_24px_rgba(255,138,44,0.25)]"
+                                                        : "border-white/10 bg-white/[0.03] text-white/75 hover:border-white/20 hover:bg-white/[0.06] hover:text-white"
                                                         }`}
                                                 >
                                                     {model.label}
@@ -148,8 +154,7 @@ export default function Home() {
                         </p>
 
                         <h1 className="max-w-[620px] text-4xl font-extrabold leading-[0.95] tracking-tight sm:text-5xl xl:text-6xl">
-                            The Easiest Way to
-                            Create 3D Models
+                            The Easiest Way to Create 3D Models
                         </h1>
 
                         <p className="mt-5 max-w-[560px] text-lg text-white/75 sm:text-xl">
@@ -176,12 +181,13 @@ export default function Home() {
                             <GenerateButton />
                         </div>
 
-                        {status === "success" && (
+                        {/* UPDATED: Successful download block */}
+                        {status === "success" && resultPath && (
                             <div className="mt-12">
                                 <div className="w-full rounded-[20px] border border-white/10 bg-[#11131f]/70 px-8 py-7 text-center shadow-[0_10px_25px_rgba(0,0,0,0.25)]">
                                     <a
-                                        href="/models/tiger.glb"
-                                        download="sunrise_model.glb"
+                                        href={resultPath}
+                                        download="generated_model.glb"
                                         className="flex w-full items-center justify-center rounded-[14px] border border-white/10 bg-[#171927] px-6 py-4 text-[22px] font-medium text-white transition hover:bg-white/5"
                                     >
                                         ↓ Download Model (glb)
@@ -197,6 +203,7 @@ export default function Home() {
                             </div>
                         )}
 
+                        {/* UPDATED: Error block */}
                         {status === "error" && (
                             <div className="mt-8">
                                 <div className="w-full rounded-[16px] border border-red-500/30 bg-red-500/10 px-6 py-4 text-center text-red-400">
@@ -208,7 +215,11 @@ export default function Home() {
 
                         <div className="mt-10 flex justify-center gap-6 border-t border-white/10 pt-6">
                             <button
-                                onClick={() => useGenerationStore.getState().setStatus("success")}
+                                onClick={() => {
+                                    // Simulate the backend: pass the path to the current demo model
+                                    useGenerationStore.getState().setResultPath(selectedModel); 
+                                    useGenerationStore.getState().setStatus("success");
+                                }}
                                 className="text-sm text-green-500/70 transition hover:text-green-400"
                             >
                                 [Dev Test: Success]

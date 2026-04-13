@@ -126,7 +126,7 @@ system_msg = (
 
                 "\n\n═══ EXPORT RULES — MANDATORY ═══"
                 "\n- The VERY LAST line of the code must ALWAYS be exactly:"
-                "\nbpy.ops.export_scene.gltf(filepath='static/models/result.glb', export_format='GLB')"
+                "\nbpy.ops.export_scene.gltf(filepath='result.glb', export_format='GLB')"
 )
 
 import os
@@ -180,13 +180,59 @@ def process_prompt_task(prompt_id):
             with open(script_filename, "w", encoding="utf-8") as f:
                 f.write(generated_code)
 
-            blender_path = r"C:\Program Files\Blender Foundation\Blender 5.1\blender-launcher.exe"
+            import os
+            import shutil
+            import platform
+            import subprocess
 
-            if not os.path.exists(blender_path):
-                raise Exception(f"Blender not found on location: {blender_path}")
+            def find_blender():
+                # 1. Check system variables (works if Blender is added to PATH)
+                path_blender = shutil.which("blender")
+                if path_blender:
+                    return path_blender
+                
+                # 2. Перевірка налаштувань розробника (.env файл)
+                env_blender = os.environ.get("BLENDER_PATH")
+                if env_blender and os.path.exists(env_blender):
+                    return env_blender
+                
+                # 3. Checking developer settings (.env file)
+                if platform.system() == "Windows":
+                    drives = ["C:\\", "D:\\", "E:\\", "F:\\"]
+                    base_folders = [
+                        r"Program Files\Blender Foundation",
+                        r"Program Files (x86)\Steam\steamapps\common\Blender",
+                        r"SteamLibrary\steamapps\common\Blender",
+                        r"Steam\steamapps\common\Blender"
+                    ]
+                    
+                    for drive in drives:
+                        for folder in base_folders:
+                            search_path = os.path.join(drive, folder)
+                            if os.path.exists(search_path):
+                                # os.walk will go into all subfolders (e.g. Blender 4.2) and find the exe file
+                                for root, dirs, files in os.walk(search_path):
+                                    if "blender.exe" in files:
+                                        return os.path.join(root, "blender.exe")
+                
+                # 4. Support for Mac OS (if someone on the team is on a Mac)
+                elif platform.system() == "Darwin":
+                    mac_path = "/Applications/Blender.app/Contents/MacOS/Blender"
+                    if os.path.exists(mac_path):
+                        return mac_path
+                
+                return None
 
-            print(f"Starting Blender in basckground...")
+            # Calling our smart function
+            blender_path = find_blender()
+
+            # If nothing is found after all scans, we stop the process with a clear error.
+            if not blender_path:
+                raise Exception("Blender not found automatically! Please set the BLENDER_PATH environment variable in your .env file.")
+
+            print(f"Starting Blender in background using: {blender_path}...")
             
+            # Launch Blender
             result = subprocess.run([
                 blender_path,
                 "--background",
@@ -197,11 +243,20 @@ def process_prompt_task(prompt_id):
                 print(f"Blender Error Output: {result.stderr}")
                 raise Exception("Blender did not run the script successfully.")
 
+            # ADDED: Take the file and put it directly into the Next.js folder with a unique name
+            generated_filename = f"result_{prompt_id}.glb"
+            frontend_path = os.path.join("frontend", "public", "models", generated_filename)
+            
+            if os.path.exists("result.glb"):
+                shutil.move("result.glb", frontend_path)
+            else:
+                raise Exception("Blender finished, but result.glb was not found!")
+
             prompt.status = PromptStatus.COMPLETED
-            prompt.result_path = "/static/models/result.glb" 
+            prompt.result_path = f"/models/{generated_filename}" # A path that the site will understand
             db.session.commit()
             
-            print(f"Task {prompt_id} is done. Model is in app/static/models/result.glb")
+            print(f"Task {prompt_id} is done. Model is at {frontend_path}")
 
             if os.path.exists(script_filename):
                 os.remove(script_filename)

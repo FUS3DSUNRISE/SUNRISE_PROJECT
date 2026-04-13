@@ -9,36 +9,49 @@ export default function GenerateButton() {
     const status = useGenerationStore((s) => s.status);
     const setStatus = useGenerationStore((s) => s.setStatus);
     const setErrorMessage = useGenerationStore((s) => s.setErrorMessage);
+    const setResultPath = useGenerationStore((s) => s.setResultPath);
 
     const [showSpinner, setShowSpinner] = useState(false);
 
     const handleGenerate = async () => {
+        // Check for empty text
         if (!prompt.trim()) {
             setStatus("error");
             setErrorMessage("Please enter a prompt before generating.");
             return;
         }
 
+        // Validation for maximum length (255 characters)
+        if (prompt.length > 255) {
+            setStatus("error");
+            setErrorMessage(`Prompt is too long (${prompt.length}/255 characters). Please shorten it.`);
+            return;
+        }
+
         try {
             setErrorMessage(null);
+            setResultPath(null); // Clearing the previous result
             setShowSpinner(true);
 
-            // STEP 1: submitted
             setStatus("submitted");
 
-            await new Promise((resolve) => setTimeout(resolve, 500));
+            // API call (pollPrompt updates the status to processing)
+            const result = await generateModel(prompt, () => {
+                setStatus("processing");
+            });
 
-            // STEP 2: processing
-            setStatus("processing");
+            // If the backend returned success, we keep the real path
+            if (result && result.result_path) {
+                setResultPath(result.result_path);
+                setStatus("success");
+            } else {
+                throw new Error("Server did not return a file path.");
+            }
 
-            // STEP 3: call API (mock for now)
-            await generateModel(prompt);
-
-            // STEP 4: success
-            setStatus("success");
-        } catch {
+        } catch (error: any) {
+            // Displaying the real error from the backend
             setStatus("error");
-            setErrorMessage("Something went wrong during generation.");
+            setErrorMessage(error.message || "Something went wrong during generation.");
         } finally {
             setShowSpinner(false);
         }
