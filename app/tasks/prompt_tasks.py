@@ -141,6 +141,9 @@ import config
 def process_prompt_task(prompt_id):
     from app import create_app
     app = create_app()
+
+    max_retries = 3
+    retries = 0
     
     with app.app_context():
         prompt = PromptRequest.query.get(prompt_id)
@@ -149,65 +152,87 @@ def process_prompt_task(prompt_id):
             print(f"Prompt with ID {prompt_id} not found.")
             return
         
-        try:
-            prompt.status = PromptStatus.PROCESSING
-            db.session.commit()
+        while retries < max_retries:
+            try:
+                prompt.status = PromptStatus.PROCESSING
+                db.session.commit()
 
-            base_url = getattr(config, 'LLM_BASE_URL', getattr(config.Config, 'LLM_BASE_URL', "https://api.groq.com/openai/v1"))
-            model_name = getattr(config, 'LLM_MODEL', getattr(config.Config, 'LLM_MODEL', "llama-3.3-70b-versatile"))
-            api_key = getattr(config, 'LLM_API_KEY', getattr(config.Config, 'LLM_API_KEY', ""))
+                base_url = getattr(config, 'LLM_BASE_URL', getattr(config.Config, 'LLM_BASE_URL', "https://api.groq.com/openai/v1"))
+                model_name = getattr(config, 'LLM_MODEL', getattr(config.Config, 'LLM_MODEL', "llama-3.3-70b-versatile"))
+                api_key = getattr(config, 'LLM_API_KEY', getattr(config.Config, 'LLM_API_KEY', ""))
 
-            print(f"Connecting on LLM: {base_url} using model {model_name}...")
+                print(f"Connecting on LLM: {base_url} using model {model_name}...")
 
-            llm = ChatOpenAI(
-                base_url=base_url,
-                api_key=api_key,
-                model=model_name
-            )
+                llm = ChatOpenAI(
+                    base_url=base_url,
+                    api_key=api_key,
+                    model=model_name
+                )
 
-            response = llm.invoke([
-                ("system", system_msg),
-                ("human", prompt.prompt_text)
-            ])
+                response = llm.invoke([
+                    ("system", system_msg),
+                    ("human", prompt.prompt_text)
+                ])
 
-            generated_code = response.content.replace("```python", "").replace("```", "").strip()
+                generated_code = response.content.replace("```python", "").replace("```", "").strip()
 
-            print("-" * 30)
-            print(f"Generated code:\n{generated_code}")
-            print("-" * 30)
+                print("-" * 30)
+                print(f"Generated code:\n{generated_code}")
+                print("-" * 30)
 
-            script_filename = f"temp_script_{prompt_id}.py"
-            with open(script_filename, "w", encoding="utf-8") as f:
-                f.write(generated_code)
+                script_filename = f"temp_script_{prompt_id}.py"
+                with open(script_filename, "w", encoding="utf-8") as f:
+                    f.write(generated_code)
 
-            blender_path = r"C:\Program Files\Blender Foundation\Blender 5.1\blender-launcher.exe"
+                blender_path = r"C:\Program Files\Blender Foundation\Blender 5.0\blender-launcher.exe"
 
-            if not os.path.exists(blender_path):
-                raise Exception(f"Blender not found on location: {blender_path}")
+                if not os.path.exists(blender_path):
+                    raise Exception(f"Blender not found on location: {blender_path}")
 
-            print(f"Starting Blender in basckground...")
+                print(f"Starting Blender in basckground...")
+                
+                result = subprocess.run([
+                    blender_path,
+                    "--background",
+                    "--python", script_filename
+                ], capture_output=True, text=True)
+
+                if result.returncode != 0:
+                    print(f"Blender Error Output: {result.stderr}")
+                    raise Exception("Blender did not run the script successfully.")
+
+                prompt.status = PromptStatus.COMPLETED
+                prompt.result_path = "/static/models/result.glb" 
+                db.session.commit()
+                
+                print(f"Task {prompt_id} is done. Model is in app/static/models/result.glb")
+
+                if os.path.exists(script_filename):
+                    os.remove(script_filename)
+
+            except Exception as e:
+                retries += 1
+                print(f"Retry {retries}/{max_retries} failed: {str(e)}")
             
-            result = subprocess.run([
-                blender_path,
-                "--background",
-                "--python", script_filename
-            ], capture_output=True, text=True)
+                if retries > max_retries:
+                    print(f"Error: {str(e)}")
+                    prompt.status = PromptStatus.FAILED
+                    prompt.error_message = str(e)
+                    db.session.commit()
 
-            if result.returncode != 0:
-                print(f"Blender Error Output: {result.stderr}")
-                raise Exception("Blender did not run the script successfully.")
+                correction_request = [
+                    ("system", system_msg),
+                    ("human", f"The code you provided caused an error. Here is the error message: {str(e)}. Please fix it."),
+                    ("human", prompt.prompt_text)
+                ]
+                corrected_response = llm.invoke(correction_request)
+                corrected_code = corrected_response.content.replace("```python", "").replace("```", "").strip()
 
-            prompt.status = PromptStatus.COMPLETED
-            prompt.result_path = "/static/models/result.glb" 
-            db.session.commit()
-            
-            print(f"Task {prompt_id} is done. Model is in app/static/models/result.glb")
+                with open(script_filename, "w", encoding="utf-8") as f:
+                    f.write(corrected_code)
 
-            if os.path.exists(script_filename):
-                os.remove(script_filename)
-
-        except Exception as e:
-            print(f"Error: {str(e)}")
-            prompt.status = PromptStatus.FAILED
-            prompt.error_message = str(e)
-            db.session.commit()
+                result = subprocess.run([
+                    blender_path,
+                    "--background",
+                    "--python", script_filename
+                ], capture_output=True, text=True)
