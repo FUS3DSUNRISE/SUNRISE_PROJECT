@@ -61,3 +61,11 @@ export async function generateModel(
   const created = await createPrompt(prompt);
   return await pollPrompt(created.id, onProcessing);
 }
+
+export function getDownloadUrl(id: number) {
+    return `${BASE_URL}/prompts/${id}/download`;
+}
+
+export function getPreviewUrl(id: number) {
+    return `${BASE_URL}/prompts/${id}/file`;
+}

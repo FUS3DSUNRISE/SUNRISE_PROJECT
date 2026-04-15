@@ -172,6 +172,14 @@ def process_prompt_task(prompt_id):
 
             generated_code = response.content.replace("```python", "").replace("```", "").strip()
 
+            output_filename = f"prompt_{prompt_id}.glb"
+            output_path = f"static/models/{output_filename}"
+
+            generated_code = generated_code.replace(
+            "bpy.ops.export_scene.gltf(filepath='static/models/result.glb', export_format='GLB')",
+            f"bpy.ops.export_scene.gltf(filepath='{output_path}', export_format='GLB')"
+            )
+            
             print("-" * 30)
             print(f"Generated code:\n{generated_code}")
             print("-" * 30)
@@ -198,10 +206,10 @@ def process_prompt_task(prompt_id):
                 raise Exception("Blender did not run the script successfully.")
 
             prompt.status = PromptStatus.COMPLETED
-            prompt.result_path = "/static/models/result.glb" 
+            prompt.result_path = f"/static/models/{output_filename}"
             db.session.commit()
             
-            print(f"Task {prompt_id} is done. Model is in app/static/models/result.glb")
+            print(f"Task {prompt_id} is done. Model is in app/static/models/{output_filename}")
 
             if os.path.exists(script_filename):
                 os.remove(script_filename)

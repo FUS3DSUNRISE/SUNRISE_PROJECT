@@ -7,6 +7,7 @@ import GenerateButton from "@/components/GenerateButton";
 import AuthModal from "@/components/AuthModal";
 import PreviewCanvas from "@/components/PreviewCanvas";
 import logo from "../public/logo.png";
+import { getDownloadUrl, getPreviewUrl } from "@/services/api";
 
 const demoModels = [
     { label: "Tiger", path: "/models/tiger.glb" },
@@ -23,6 +24,8 @@ export default function Home() {
     const setPrompt = useGenerationStore((s) => s.setPrompt);
     const errorMessage = useGenerationStore((s) => s.errorMessage);
     const reset = useGenerationStore((s) => s.reset);
+    const result = useGenerationStore((s) => s.result);
+
 
     const [authModal, setAuthModal] = useState<null | "login" | "signup">(null);
     const [selectedModel, setSelectedModel] = useState("/models/tiger.glb");
@@ -30,6 +33,11 @@ export default function Home() {
 
     const selectedModelLabel =
         demoModels.find((model) => model.path === selectedModel)?.label ?? "Tiger";
+    
+    const previewModelPath =
+    status === "success" && result
+        ? getPreviewUrl(result.id)
+        : selectedModel;
 
     return (
         <main className="min-h-screen bg-transparent text-white">
@@ -82,7 +90,7 @@ export default function Home() {
                             </div>
 
                             <div className="h-[380px] w-full lg:h-[460px]">
-                                <PreviewCanvas modelPath={selectedModel} />
+                                <PreviewCanvas modelPath={previewModelPath} />
                             </div>
 
                             <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.04)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.04)_1px,transparent_1px)] bg-[size:60px_60px] opacity-25" />
@@ -176,22 +184,21 @@ export default function Home() {
                             <GenerateButton />
                         </div>
 
-                        {status === "success" && (
+                        {status === "success" && result && (
                             <div className="mt-12">
                                 <div className="w-full rounded-[20px] border border-white/10 bg-[#11131f]/70 px-8 py-7 text-center shadow-[0_10px_25px_rgba(0,0,0,0.25)]">
                                     <a
-                                        href="/models/tiger.glb"
-                                        download="sunrise_model.glb"
+                                        href={getDownloadUrl(result.id)}
                                         className="flex w-full items-center justify-center rounded-[14px] border border-white/10 bg-[#171927] px-6 py-4 text-[22px] font-medium text-white transition hover:bg-white/5"
                                     >
                                         ↓ Download Model (glb)
                                     </a>
 
                                     <p className="mt-6 text-[20px] text-white/75">
-                                        Formats: GLB / FBX / OBJ
+                                        Prompt ID: {result.id}
                                     </p>
                                     <p className="mt-3 text-[20px] text-white/75">
-                                        Estimated Time: 3-5 min
+                                        Status: {result.status}
                                     </p>
                                 </div>
                             </div>

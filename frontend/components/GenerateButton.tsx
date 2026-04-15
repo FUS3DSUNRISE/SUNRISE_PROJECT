@@ -9,6 +9,7 @@ export default function GenerateButton() {
     const status = useGenerationStore((s) => s.status);
     const setStatus = useGenerationStore((s) => s.setStatus);
     const setErrorMessage = useGenerationStore((s) => s.setErrorMessage);
+    const setResult = useGenerationStore((s) => s.setResult);
 
     const [showSpinner, setShowSpinner] = useState(false);
 
@@ -31,8 +32,9 @@ export default function GenerateButton() {
             // STEP 2: processing
             setStatus("processing");
 
-            // STEP 3: call API (mock for now)
-            await generateModel(prompt);
+            // STEP 3: call API 
+            const result = await generateModel(prompt);
+            setResult(result);
 
             // STEP 4: success
             setStatus("success");
