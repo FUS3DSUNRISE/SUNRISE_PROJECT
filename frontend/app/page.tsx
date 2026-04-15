@@ -9,6 +9,9 @@ import PreviewCanvas from "@/components/PreviewCanvas";
 import logo from "../public/logo.png";
 import { getDownloadUrl, getPreviewUrl } from "@/services/api";
 
+//for test
+import { useAuthStore } from "@/state/authStore";
+
 const demoModels = [
     { label: "Tiger", path: "/models/tiger.glb" },
     { label: "Backpack", path: "/models/backpack.glb" },
@@ -25,6 +28,9 @@ export default function Home() {
     const errorMessage = useGenerationStore((s) => s.errorMessage);
     const reset = useGenerationStore((s) => s.reset);
     const result = useGenerationStore((s) => s.result);
+
+    // for test
+    const user = useAuthStore((s) => s.user);
 
 
     const [authModal, setAuthModal] = useState<null | "login" | "signup">(null);
@@ -77,6 +83,15 @@ export default function Home() {
                         </button>
                     </nav>
                 </header>
+
+
+                {/* TEMP TEST: authenticated user display */}
+                {user && (
+                    <p className="px-8 pt-4 text-sm text-white/60">
+                        Logged in as {user.email}
+                    </p>
+                )}
+
 
                 <section className="grid min-h-[calc(100vh-120px)] grid-cols-1 items-center gap-10 px-8 py-10 xl:grid-cols-[1.15fr_0.85fr] xl:gap-12">
                     <div className="flex flex-col">

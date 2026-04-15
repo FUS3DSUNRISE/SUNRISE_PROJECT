@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useGenerationStore } from "@/state/generationStore";
 import { generateModel } from "@/services/api";
+import { useAuthStore } from "@/state/authStore";
 
 export default function GenerateButton() {
     const prompt = useGenerationStore((s) => s.prompt);
@@ -10,6 +11,7 @@ export default function GenerateButton() {
     const setStatus = useGenerationStore((s) => s.setStatus);
     const setErrorMessage = useGenerationStore((s) => s.setErrorMessage);
     const setResult = useGenerationStore((s) => s.setResult);
+    const user = useAuthStore((s) => s.user);
 
     const [showSpinner, setShowSpinner] = useState(false);
 
@@ -17,6 +19,11 @@ export default function GenerateButton() {
         if (!prompt.trim()) {
             setStatus("error");
             setErrorMessage("Please enter a prompt before generating.");
+            return;
+        }
+        if (!user) {
+            setStatus("error");
+            setErrorMessage("You must be logged in before generating a model.");
             return;
         }
 
@@ -39,6 +46,7 @@ export default function GenerateButton() {
             // STEP 4: success
             setStatus("success");
         } catch {
+            setResult(null);
             setStatus("error");
             setErrorMessage("Something went wrong during generation.");
         } finally {
