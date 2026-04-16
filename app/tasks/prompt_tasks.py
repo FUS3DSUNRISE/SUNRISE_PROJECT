@@ -131,11 +131,14 @@ system_msg = (
 
 import os
 import subprocess
+from dotenv import load_dotenv
 from worker import celery
 from app.extensions import db
 from app.models.prompt import PromptRequest, PromptStatus
 from langchain_openai import ChatOpenAI
 import config
+
+load_dotenv()
 
 @celery.task
 def process_prompt_task(prompt_id):
@@ -188,12 +191,15 @@ def process_prompt_task(prompt_id):
             with open(script_filename, "w", encoding="utf-8") as f:
                 f.write(generated_code)
 
-            blender_path = r"C:\Program Files\Blender Foundation\Blender 5.1\blender-launcher.exe"
+            blender_path = os.getenv("BLENDER_PATH")
+
+            if not blender_path:
+                raise Exception("BLENDER_PATH is not set in the .env file")
 
             if not os.path.exists(blender_path):
                 raise Exception(f"Blender not found on location: {blender_path}")
 
-            print(f"Starting Blender in basckground...")
+            print(f"Starting Blender in background...")
             
             result = subprocess.run([
                 blender_path,
