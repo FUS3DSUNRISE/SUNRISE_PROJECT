@@ -1,24 +1,28 @@
-const BASE_URL = "http://127.0.0.1:5000";
-
+const BASE_URL = "http://localhost:5000";
 
 export async function createPrompt(prompt: string) {
     const res = await fetch(`${BASE_URL}/prompts`, {
         method: "POST",
+        credentials: "include",
         headers: {
             "Content-Type": "application/json",
         },
         body: JSON.stringify({ prompt }),
     });
 
+    const data = await res.json();
+
     if (!res.ok) {
-        throw new Error("Failed to create prompt");
+        throw new Error(data.error || data.message || "Failed to create prompt");
     }
 
-    return res.json(); // { id, status }
+    return data;
 }
 
 export async function getPrompt(id: number) {
-    const res = await fetch(`${BASE_URL}/prompts/${id}`);
+    const res = await fetch(`${BASE_URL}/prompts/${id}`, {
+        credentials: "include",
+    });
 
     if (!res.ok) {
         throw new Error("Failed to fetch prompt");
@@ -55,9 +59,98 @@ export async function pollPrompt(
 }
 
 export async function generateModel(
-  prompt: string,
-  onProcessing: () => void = () => {}
+    prompt: string,
+    onProcessing: () => void = () => {}
 ) {
-  const created = await createPrompt(prompt);
-  return await pollPrompt(created.id, onProcessing);
+    const created = await createPrompt(prompt);
+    return await pollPrompt(created.id, onProcessing);
+}
+
+export function getDownloadUrl(id: number) {
+    return `${BASE_URL}/prompts/${id}/download`;
+}
+
+export function getPreviewUrl(id: number) {
+    return `${BASE_URL}/prompts/${id}/file`;
+}
+
+export async function signupUser(email: string, password: string) {
+    const res = await fetch(`${BASE_URL}/auth/signup`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+        throw new Error(data.error || "Signup failed");
+    }
+
+    return data;
+}
+
+export async function loginUser(email: string, password: string) {
+    const res = await fetch(`${BASE_URL}/auth/login`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+        throw new Error(data.error || "Login failed");
+    }
+
+    return data;
+}
+
+export async function getCurrentUser() {
+    const res = await fetch(`${BASE_URL}/auth/me`, {
+        credentials: "include",
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+        throw new Error(data.error || "Failed to fetch current user");
+    }
+
+    return data;
+}
+
+export async function logoutUser() {
+    const res = await fetch(`${BASE_URL}/auth/logout`, {
+        method: "POST",
+        credentials: "include",
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+        throw new Error(data.error || "Logout failed");
+    }
+
+    return data;
+}
+
+export async function getMyPrompts() {
+    const res = await fetch(`${BASE_URL}/prompts/me`, {
+        credentials: "include",
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+        throw new Error(data.error || "Failed to fetch user prompts");
+    }
+
+    return data;
 }

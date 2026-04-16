@@ -1,4 +1,10 @@
+.vs/
+*.slnx
+.env
 venv/
 __pycache__/
 *.pyc
 instance/
+static/models/*.glb
+node_modules/
+.next/

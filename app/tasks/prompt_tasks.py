@@ -131,11 +131,14 @@ system_msg = (
 
 import os
 import subprocess
+from dotenv import load_dotenv
 from worker import celery
 from app.extensions import db
 from app.models.prompt import PromptRequest, PromptStatus
 from langchain_openai import ChatOpenAI
 import config
+
+load_dotenv()
 
 @celery.task
 def process_prompt_task(prompt_id):
@@ -172,6 +175,14 @@ def process_prompt_task(prompt_id):
 
             generated_code = response.content.replace("```python", "").replace("```", "").strip()
 
+            output_filename = f"prompt_{prompt_id}.glb"
+            output_path = f"static/models/{output_filename}"
+
+            generated_code = generated_code.replace(
+            "bpy.ops.export_scene.gltf(filepath='static/models/result.glb', export_format='GLB')",
+            f"bpy.ops.export_scene.gltf(filepath='{output_path}', export_format='GLB')"
+            )
+            
             print("-" * 30)
             print(f"Generated code:\n{generated_code}")
             print("-" * 30)
@@ -180,12 +191,15 @@ def process_prompt_task(prompt_id):
             with open(script_filename, "w", encoding="utf-8") as f:
                 f.write(generated_code)
 
-            blender_path = r"C:\Program Files\Blender Foundation\Blender 5.1\blender-launcher.exe"
+            blender_path = os.getenv("BLENDER_PATH")
+
+            if not blender_path:
+                raise Exception("BLENDER_PATH is not set in the .env file")
 
             if not os.path.exists(blender_path):
                 raise Exception(f"Blender not found on location: {blender_path}")
 
-            print(f"Starting Blender in basckground...")
+            print(f"Starting Blender in background...")
             
             result = subprocess.run([
                 blender_path,
@@ -198,10 +212,10 @@ def process_prompt_task(prompt_id):
                 raise Exception("Blender did not run the script successfully.")
 
             prompt.status = PromptStatus.COMPLETED
-            prompt.result_path = "/static/models/result.glb" 
+            prompt.result_path = f"/static/models/{output_filename}"
             db.session.commit()
             
-            print(f"Task {prompt_id} is done. Model is in app/static/models/result.glb")
+            print(f"Task {prompt_id} is done. Model is in app/static/models/{output_filename}")
 
             if os.path.exists(script_filename):
                 os.remove(script_filename)
