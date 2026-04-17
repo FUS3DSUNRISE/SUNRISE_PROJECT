@@ -131,6 +131,9 @@ system_msg = (
 
 import os
 import subprocess
+import logging
+import traceback
+import time
 from dotenv import load_dotenv
 from worker import celery
 from app.extensions import db
@@ -140,88 +143,214 @@ import config
 
 load_dotenv()
 
-@celery.task
-def process_prompt_task(prompt_id):
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger("tasks.process_prompt")
+
+
+class ConfigurationError(Exception):
+    """Missing or invalid environment / config values."""
+
+class LLMError(Exception):
+    """Failure during LLM invocation."""
+
+class BlenderError(Exception):
+    def __init__(self, message, stderr="", returncode=None):
+        super().__init__(message)
+        self.stderr = stderr
+        self.returncode = returncode
+
+def _resolve_config(attr: str, fallback: str) -> str:
+    return (
+        getattr(config, attr, None)
+        or getattr(getattr(config, "Config", object()), attr, None)
+        or fallback
+    )
+
+def _write_script(prompt_id: int, code: str) -> str:
+    filename = f"temp_script_{prompt_id}.py"
+    try:
+        with open(filename, "w", encoding="utf-8") as f:
+            f.write(code)
+        logger.debug("Script written to %s (%d bytes)", filename, len(code))
+    except OSError as exc:
+        raise OSError(f"Could not write temp script '{filename}': {exc}") from exc
+    return filename
+
+def _cleanup(path: str) -> None:
+    try:
+        if path and os.path.exists(path):
+            os.remove(path)
+            logger.debug("Cleaned up temp file: %s", path)
+    except OSError as exc:
+        logger.warning("Could not remove temp file '%s': %s", path, exc)
+
+def _fail_prompt(prompt: PromptRequest, message: str) -> None:
+    prompt.status = PromptStatus.FAILED
+    prompt.error_message = message[:2000]  # guard against oversized DB writes
+    db.session.commit()
+
+@celery.task(
+    bind=True,
+    max_retries=2,
+    default_retry_delay=10,
+)
+def process_prompt_task(self, prompt_id: int):
     from app import create_app
     app = create_app()
-    
-    with app.app_context():
-        prompt = PromptRequest.query.get(prompt_id)
 
+    with app.app_context():
+        script_filename = None
+
+        prompt = PromptRequest.query.get(prompt_id)
         if not prompt:
-            print(f"Prompt with ID {prompt_id} not found.")
+            logger.error("Prompt ID %s not found in database — aborting.", prompt_id)
             return
-        
+
+        logger.info("Task started | prompt_id=%s status=%s", prompt_id, prompt.status)
+
         try:
             prompt.status = PromptStatus.PROCESSING
             db.session.commit()
 
-            base_url = getattr(config, 'LLM_BASE_URL', getattr(config.Config, 'LLM_BASE_URL', "https://api.groq.com/openai/v1"))
-            model_name = getattr(config, 'LLM_MODEL', getattr(config.Config, 'LLM_MODEL', "llama-3.3-70b-versatile"))
-            api_key = getattr(config, 'LLM_API_KEY', getattr(config.Config, 'LLM_API_KEY', ""))
+            base_url   = _resolve_config("LLM_BASE_URL",  "https://api.groq.com/openai/v1")
+            model_name = _resolve_config("LLM_MODEL",     "llama-3.3-70b-versatile")
+            api_key    = _resolve_config("LLM_API_KEY",   "")
 
-            print(f"Connecting on LLM: {base_url} using model {model_name}...")
+            if not api_key:
+                raise ConfigurationError("LLM_API_KEY is empty — set it in .env or config.")
 
-            llm = ChatOpenAI(
-                base_url=base_url,
-                api_key=api_key,
-                model=model_name
+            logger.info(
+                "LLM config | base_url=%s model=%s prompt_id=%s",
+                base_url, model_name, prompt_id,
             )
 
-            response = llm.invoke([
-                ("system", system_msg),
-                ("human", prompt.prompt_text)
-            ])
+            llm = ChatOpenAI(base_url=base_url, api_key=api_key, model=model_name)
+
+            t0 = time.perf_counter()
+            try:
+                response = llm.invoke([
+                    ("system", system_msg),
+                    ("human", prompt.prompt_text),
+                ])
+            except Exception as exc:
+                raise LLMError(f"LLM call failed: {exc}") from exc
+
+            elapsed_llm = time.perf_counter() - t0
+            logger.info(
+                "LLM response received | prompt_id=%s elapsed=%.2fs tokens≈%d",
+                prompt_id, elapsed_llm, len(response.content) // 4,
+            )
 
             generated_code = response.content.replace("```python", "").replace("```", "").strip()
 
+            if "import bpy" not in generated_code:
+                raise LLMError("Generated code does not contain 'import bpy' — likely malformed.")
+
             output_filename = f"prompt_{prompt_id}.glb"
-            output_path = f"static/models/{output_filename}"
+            output_path     = f"static/models/{output_filename}"
 
             generated_code = generated_code.replace(
-            "bpy.ops.export_scene.gltf(filepath='static/models/result.glb', export_format='GLB')",
-            f"bpy.ops.export_scene.gltf(filepath='{output_path}', export_format='GLB')"
+                "bpy.ops.export_scene.gltf(filepath='static/models/result.glb', export_format='GLB')",
+                f"bpy.ops.export_scene.gltf(filepath='{output_path}', export_format='GLB')",
             )
-            
-            print("-" * 30)
-            print(f"Generated code:\n{generated_code}")
-            print("-" * 30)
 
-            script_filename = f"temp_script_{prompt_id}.py"
-            with open(script_filename, "w", encoding="utf-8") as f:
-                f.write(generated_code)
+            logger.debug("Generated code preview (first 300 chars):\n%s", generated_code[:300])
+
+            script_filename = _write_script(prompt_id, generated_code)
 
             blender_path = os.getenv("BLENDER_PATH")
-
             if not blender_path:
-                raise Exception("BLENDER_PATH is not set in the .env file")
-
+                raise ConfigurationError("BLENDER_PATH is not set in the .env file.")
             if not os.path.exists(blender_path):
-                raise Exception(f"Blender not found on location: {blender_path}")
+                raise ConfigurationError(f"Blender executable not found at: {blender_path}")
 
-            print(f"Starting Blender in background...")
-            
-            result = subprocess.run([
-                blender_path,
-                "--background",
-                "--python", script_filename
-            ], capture_output=True, text=True)
+            logger.info("Launching Blender | prompt_id=%s script=%s", prompt_id, script_filename)
+            t1 = time.perf_counter()
+
+            result = subprocess.run(
+                [blender_path, "--background", "--python", script_filename],
+                capture_output=True,
+                text=True,
+                timeout=120,  # prevent runaway processes
+            )
+
+            elapsed_blender = time.perf_counter() - t1
+            logger.info(
+                "Blender finished | prompt_id=%s returncode=%d elapsed=%.2fs",
+                prompt_id, result.returncode, elapsed_blender,
+            )
 
             if result.returncode != 0:
-                print(f"Blender Error Output: {result.stderr}")
-                raise Exception("Blender did not run the script successfully.")
+                logger.error(
+                    "Blender stderr (prompt_id=%s):\n%s",
+                    prompt_id, result.stderr[-3000:],  # tail to avoid log flooding
+                )
+                raise BlenderError(
+                    "Blender exited with non-zero return code.",
+                    stderr=result.stderr,
+                    returncode=result.returncode,
+                )
 
-            prompt.status = PromptStatus.COMPLETED
+            if result.stderr:
+                logger.warning(
+                    "Blender stderr (non-fatal, prompt_id=%s):\n%s",
+                    prompt_id, result.stderr[-1000:],
+                )
+
+            if not os.path.exists(output_path):
+                raise BlenderError(
+                    f"Blender ran successfully but output file was not created: {output_path}",
+                    stderr=result.stderr,
+                )
+
+            glb_size = os.path.getsize(output_path)
+            logger.info(
+                "GLB created | prompt_id=%s path=%s size=%d bytes",
+                prompt_id, output_path, glb_size,
+            )
+
+            prompt.status      = PromptStatus.COMPLETED
             prompt.result_path = f"/static/models/{output_filename}"
             db.session.commit()
-            
-            print(f"Task {prompt_id} is done. Model is in app/static/models/{output_filename}")
+            logger.info("Task completed | prompt_id=%s result_path=%s", prompt_id, prompt.result_path)
 
-            if os.path.exists(script_filename):
-                os.remove(script_filename)
+        except ConfigurationError as exc:
+            logger.critical("Configuration error | prompt_id=%s: %s", prompt_id, exc)
+            _fail_prompt(prompt, str(exc))
+            # Don't retry — misconfiguration won't fix itself automatically.
 
-        except Exception as e:
-            print(f"Error: {str(e)}")
-            prompt.status = PromptStatus.FAILED
-            prompt.error_message = str(e)
-            db.session.commit()
+        except LLMError as exc:
+            logger.error("LLM error | prompt_id=%s: %s", prompt_id, exc)
+            _fail_prompt(prompt, str(exc))
+            try:
+                raise self.retry(exc=exc)
+            except self.MaxRetriesExceededError:
+                logger.error("Max retries exceeded for LLM | prompt_id=%s", prompt_id)
+
+        except BlenderError as exc:
+            logger.error(
+                "Blender error | prompt_id=%s returncode=%s: %s\nstderr tail:\n%s",
+                prompt_id, exc.returncode, exc, exc.stderr[-2000:],
+            )
+            _fail_prompt(prompt, str(exc))
+
+        except subprocess.TimeoutExpired:
+            msg = "Blender process timed out after 120 seconds."
+            logger.error("%s | prompt_id=%s", msg, prompt_id)
+            _fail_prompt(prompt, msg)
+
+        except Exception as exc:
+            tb = traceback.format_exc()
+            logger.error("Unexpected error | prompt_id=%s:\n%s", prompt_id, tb)
+            _fail_prompt(prompt, f"Unexpected error: {exc}")
+            try:
+                raise self.retry(exc=exc)
+            except self.MaxRetriesExceededError:
+                logger.error("Max retries exceeded | prompt_id=%s", prompt_id)
+
+        finally:
+            _cleanup(script_filename)
