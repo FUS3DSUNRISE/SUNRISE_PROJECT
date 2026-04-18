@@ -47,6 +47,9 @@ export async function pollPrompt(
         }
 
         if (status === "completed") {
+            if (!data.result_path) {
+                console.warn("Generation completed but result_path is missing");
+            }
             return data;
         }
 
