@@ -7,7 +7,10 @@ import GenerateButton from "@/components/GenerateButton";
 import AuthModal from "@/components/AuthModal";
 import PreviewCanvas from "@/components/PreviewCanvas";
 import logo from "../public/logo.png";
-import { getDownloadUrl, getPreviewUrl } from "@/services/api";
+import {
+    getDownloadUrl,
+    getPreviewBlobUrl,
+} from "@/services/api";
 import ParameterPanel, { ModelParameters } from "@/components/ParameterPanel";
 import { useAuthStore } from "@/state/authStore";
 
@@ -52,19 +55,48 @@ export default function Home() {
     const [showExamples, setShowExamples] = useState(false);
     const [showUserMenu, setShowUserMenu] = useState(false);
     const [parameters, setParameters] = useState<ModelParameters>(defaultParameters);
+    const [previewBlobUrl, setPreviewBlobUrl] = useState<string | null>(null);
 
     useEffect(() => {
         console.log("Parameter JSON:", parameters);
     }, [parameters]);
 
+    useEffect(() => {
+        let objectUrl: string | null = null;
+        let isMounted = true;
+
+        async function loadPreview() {
+            if (status === "success" && result) {
+                try {
+                    objectUrl = await getPreviewBlobUrl(result.id);
+                    if (isMounted) {
+                        setPreviewBlobUrl(objectUrl);
+                    }
+                } catch (error) {
+                    console.error("Preview load failed:", error);
+                    if (isMounted) {
+                        setPreviewBlobUrl(null);
+                    }
+                }
+            } else {
+                setPreviewBlobUrl(null);
+            }
+        }
+
+        loadPreview();
+
+        return () => {
+            isMounted = false;
+            if (objectUrl) {
+                URL.revokeObjectURL(objectUrl);
+            }
+        };
+    }, [status, result]);
+
     const selectedModelLabel =
         demoModels.find((model) => model.path === selectedModel)?.label ?? "Tiger";
 
-    const previewModelPath =
-        status === "success" && result
-            ? getPreviewUrl(result.id)
-            : selectedModel;
-
+    const previewModelPath = previewBlobUrl ?? selectedModel;
     const userInitial = user?.email?.[0]?.toUpperCase() ?? "U";
 
     return (
@@ -163,7 +195,7 @@ export default function Home() {
                     </div>
 
                     <div className="flex flex-col">
-                        <div className="relative overflow-hidden rounded-[26px] border border-white/5 bg-[radial-gradient(circle_at_top,rgba(70,80,255,0.12),transparent_40%),#0b1020] p-4 shadow-inner mt-10">
+                        <div className="relative mt-10 overflow-hidden rounded-[26px] border border-white/5 bg-[radial-gradient(circle_at_top,rgba(70,80,255,0.12),transparent_40%),#0b1020] p-4 shadow-inner">
                             <div className="absolute left-1/2 top-8 z-10 -translate-x-1/2 rounded-xl border border-white/10 bg-[#2b2d42]/80 px-5 py-3 text-[16px] text-white/80 shadow-lg">
                                 {status === "submitted"
                                     ? "Submitting..."
@@ -233,7 +265,7 @@ export default function Home() {
                         </div>
                     </div>
 
-                    <div className="rounded-[26px] border border-white/5 bg-[#0b1020]/70 p-6 shadow-inner mt-20">
+                    <div className="mt-20 rounded-[26px] border border-white/5 bg-[#0b1020]/70 p-6 shadow-inner">
                         <p className="mb-4 text-sm font-semibold uppercase tracking-[0.2em] text-[#ff8a2c]">
                             Synthetic assets, real workflow
                         </p>
