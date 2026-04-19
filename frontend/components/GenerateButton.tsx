@@ -3,13 +3,19 @@
 import { useState } from "react";
 import { useGenerationStore } from "@/state/generationStore";
 import { generateModel } from "@/services/api";
+import { useAuthStore } from "@/state/authStore";
 
 export default function GenerateButton() {
     const prompt = useGenerationStore((s) => s.prompt);
     const status = useGenerationStore((s) => s.status);
     const setStatus = useGenerationStore((s) => s.setStatus);
     const setErrorMessage = useGenerationStore((s) => s.setErrorMessage);
+<<<<<<< HEAD
     const setResultPath = useGenerationStore((s) => s.setResultPath);
+=======
+    const setResult = useGenerationStore((s) => s.setResult);
+    const user = useAuthStore((s) => s.user);
+>>>>>>> 16332e81f9ab4d3db1e4c7596c736e0b2b1f32e1
 
     const [showSpinner, setShowSpinner] = useState(false);
 
@@ -18,6 +24,11 @@ export default function GenerateButton() {
         if (!prompt.trim()) {
             setStatus("error");
             setErrorMessage("Please enter a prompt before generating.");
+            return;
+        }
+        if (!user) {
+            setStatus("error");
+            setErrorMessage("You must be logged in before generating a model.");
             return;
         }
 
@@ -48,8 +59,19 @@ export default function GenerateButton() {
                 throw new Error("Server did not return a file path.");
             }
 
+<<<<<<< HEAD
         } catch (error: any) {
             // Displaying the real error from the backend
+=======
+            // STEP 3: call API 
+            const result = await generateModel(prompt);
+            setResult(result);
+
+            // STEP 4: success
+            setStatus("success");
+        } catch {
+            setResult(null);
+>>>>>>> 16332e81f9ab4d3db1e4c7596c736e0b2b1f32e1
             setStatus("error");
             setErrorMessage(error.message || "Something went wrong during generation.");
         } finally {
