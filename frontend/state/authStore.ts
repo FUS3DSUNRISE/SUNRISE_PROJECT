@@ -1,10 +1,12 @@
 import { create } from "zustand";
 
+
 export interface AuthUser {
     id: number;
     username: string;
     email: string;
 }
+
 
 interface AuthStore {
     user: AuthUser | null;
@@ -12,10 +14,13 @@ interface AuthStore {
     logout: () => void;
 }
 
+
 export const useAuthStore = create<AuthStore>((set) => ({
     user: null,
 
+
     setUser: (user) => set({ user }),
+
 
     logout: () => set({ user: null }),
 }));

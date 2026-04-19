@@ -1,5 +1,6 @@
 "use client";
 
+
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { useGenerationStore } from "@/state/generationStore";
@@ -14,6 +15,7 @@ import {
 import ParameterPanel, { ModelParameters } from "@/components/ParameterPanel";
 import { useAuthStore } from "@/state/authStore";
 
+
 const demoModels = [
     { label: "Tiger", path: "/models/tiger.glb" },
     { label: "Backpack", path: "/models/backpack.glb" },
@@ -22,6 +24,7 @@ const demoModels = [
     { label: "Dinosaur", path: "/models/dinosaur.glb" },
     { label: "Table", path: "/models/table.glb" },
 ];
+
 
 const defaultParameters: ModelParameters = {
     size: {
@@ -40,20 +43,18 @@ const defaultParameters: ModelParameters = {
     },
 };
 
+
 export default function Home() {
     const status = useGenerationStore((s) => s.status);
     const prompt = useGenerationStore((s) => s.prompt);
     const setPrompt = useGenerationStore((s) => s.setPrompt);
     const errorMessage = useGenerationStore((s) => s.errorMessage);
-<<<<<<< HEAD
-    const resultPath = useGenerationStore((s) => s.resultPath); // ADDED: extract path
-    const reset = useGenerationStore((s) => s.reset);
-=======
     const result = useGenerationStore((s) => s.result);
+
 
     const user = useAuthStore((s) => s.user);
     const logout = useAuthStore((s) => s.logout);
->>>>>>> 16332e81f9ab4d3db1e4c7596c736e0b2b1f32e1
+
 
     const [authModal, setAuthModal] = useState<null | "login" | "signup">(null);
     const [selectedModel, setSelectedModel] = useState("/models/tiger.glb");
@@ -61,14 +62,17 @@ export default function Home() {
     const [showUserMenu, setShowUserMenu] = useState(false);
     const [parameters, setParameters] = useState<ModelParameters>(defaultParameters);
     const [previewBlobUrl, setPreviewBlobUrl] = useState<string | null>(null);
+    const [modifyCommand, setModifyCommand] = useState("");
 
     useEffect(() => {
         console.log("Parameter JSON:", parameters);
     }, [parameters]);
 
+
     useEffect(() => {
         let objectUrl: string | null = null;
         let isMounted = true;
+
 
         async function loadPreview() {
             if (status === "success" && result) {
@@ -88,7 +92,9 @@ export default function Home() {
             }
         }
 
+
         loadPreview();
+
 
         return () => {
             isMounted = false;
@@ -98,17 +104,14 @@ export default function Home() {
         };
     }, [status, result]);
 
+
     const selectedModelLabel =
         demoModels.find((model) => model.path === selectedModel)?.label ?? "Tiger";
 
-<<<<<<< HEAD
-    // ADDED: Determine what to show in the 3D window.
-    // If the generation is successful and there is a path, we show the generated one. Otherwise, we show the demo model.
-    const currentModelToDisplay = status === "success" && resultPath ? resultPath : selectedModel;
-=======
+
     const previewModelPath = previewBlobUrl ?? selectedModel;
     const userInitial = user?.email?.[0]?.toUpperCase() ?? "U";
->>>>>>> 16332e81f9ab4d3db1e4c7596c736e0b2b1f32e1
+
 
     return (
         <main className="min-h-screen bg-transparent text-white">
@@ -123,6 +126,7 @@ export default function Home() {
                         />
                     </div>
 
+
                     <nav className="relative flex items-center gap-6 text-[15px] text-white/90">
                         <a
                             href="https://www.scailab.se/"
@@ -133,6 +137,7 @@ export default function Home() {
                             Contact
                         </a>
 
+
                         {!user ? (
                             <>
                                 <button
@@ -141,6 +146,7 @@ export default function Home() {
                                 >
                                     Login
                                 </button>
+
 
                                 <button
                                     onClick={() => setAuthModal("signup")}
@@ -166,6 +172,7 @@ export default function Home() {
                                     </div>
                                 </button>
 
+
                                 {showUserMenu && (
                                     <div className="absolute right-0 top-[calc(100%+12px)] z-40 w-[280px] rounded-2xl border border-white/10 bg-[#0f1320]/95 p-4 shadow-[0_20px_60px_rgba(0,0,0,0.45)] backdrop-blur-xl">
                                         <div className="flex items-center gap-3">
@@ -179,6 +186,7 @@ export default function Home() {
                                                 </p>
                                             </div>
                                         </div>
+
 
                                         <div className="mt-4 border-t border-white/10 pt-4">
                                             <button
@@ -199,11 +207,13 @@ export default function Home() {
                 </div>
             </header>
 
+
             <div className="w-full px-8 py-8 xl:px-12">
                 <section className="grid w-full grid-cols-1 gap-6 xl:grid-cols-[440px_920px_620px] xl:items-start">
                     <div className="rounded-[26px] border border-white/5 bg-[#0b1020]/70 p-4 shadow-inner">
                         <ParameterPanel value={parameters} onChange={setParameters} />
                     </div>
+
 
                     <div className="flex flex-col">
                         <div className="relative mt-10 overflow-hidden rounded-[26px] border border-white/5 bg-[radial-gradient(circle_at_top,rgba(70,80,255,0.12),transparent_40%),#0b1020] p-4 shadow-inner">
@@ -215,18 +225,15 @@ export default function Home() {
                                         : "Hover to preview 3D model"}
                             </div>
 
-<<<<<<< HEAD
-                            {/* UPDATED: Passing a dynamic variable instead of selectedModel */}
-                            <div className="h-[380px] w-full lg:h-[460px]">
-                                <PreviewCanvas modelPath={currentModelToDisplay} />
-=======
+
                             <div className="h-[620px] w-full">
                                 <PreviewCanvas modelPath={previewModelPath} />
->>>>>>> 16332e81f9ab4d3db1e4c7596c736e0b2b1f32e1
                             </div>
+
 
                             <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.04)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.04)_1px,transparent_1px)] bg-[size:60px_60px] opacity-25" />
                         </div>
+
 
                         <div className="relative mt-5 w-fit">
                             <button
@@ -235,6 +242,7 @@ export default function Home() {
                             >
                                 Load example
                             </button>
+
 
                             {showExamples && (
                                 <div className="absolute left-0 top-[calc(100%+12px)] z-30 w-[320px] rounded-2xl border border-white/10 bg-[#0f1320]/95 p-4 shadow-[0_20px_60px_rgba(0,0,0,0.45)] backdrop-blur-xl">
@@ -248,6 +256,7 @@ export default function Home() {
                                             </p>
                                         </div>
 
+
                                         <button
                                             onClick={() => setShowExamples(false)}
                                             className="text-sm text-white/45 transition hover:text-white"
@@ -256,9 +265,11 @@ export default function Home() {
                                         </button>
                                     </div>
 
+
                                     <div className="grid grid-cols-2 gap-3">
                                         {demoModels.map((model) => {
                                             const isActive = selectedModel === model.path;
+
 
                                             return (
                                                 <button
@@ -268,8 +279,8 @@ export default function Home() {
                                                         setShowExamples(false);
                                                     }}
                                                     className={`rounded-xl border px-4 py-3 text-sm font-medium transition ${isActive
-                                                        ? "border-[#ff8a2c] bg-[#ff8a2c] text-black shadow-[0_8px_24px_rgba(255,138,44,0.25)]"
-                                                        : "border-white/10 bg-white/[0.03] text-white/75 hover:border-white/20 hover:bg-white/[0.06] hover:text-white"
+                                                            ? "border-[#ff8a2c] bg-[#ff8a2c] text-black shadow-[0_8px_24px_rgba(255,138,44,0.25)]"
+                                                            : "border-white/10 bg-white/[0.03] text-white/75 hover:border-white/20 hover:bg-white/[0.06] hover:text-white"
                                                         }`}
                                                 >
                                                     {model.label}
@@ -282,30 +293,30 @@ export default function Home() {
                         </div>
                     </div>
 
+
                     <div className="mt-20 rounded-[26px] border border-white/5 bg-[#0b1020]/70 p-6 shadow-inner">
                         <p className="mb-4 text-sm font-semibold uppercase tracking-[0.2em] text-[#ff8a2c]">
                             Synthetic assets, real workflow
                         </p>
 
-<<<<<<< HEAD
-                        <h1 className="max-w-[620px] text-4xl font-extrabold leading-[0.95] tracking-tight sm:text-5xl xl:text-6xl">
-                            The Easiest Way to Create 3D Models
-=======
+
                         <h1 className="max-w-[720px] text-5xl font-extrabold leading-[0.95] tracking-tight xl:text-6xl">
                             The Easiest Way
                             <br />
                             to Create 3D Models
->>>>>>> 16332e81f9ab4d3db1e4c7596c736e0b2b1f32e1
                         </h1>
+
 
                         <p className="mt-6 max-w-[380px] text-lg text-white/75 sm:text-xl">
                             Type a prompt and generate 3D models instantly.
                         </p>
 
+
                         <div className="mt-10">
                             <label htmlFor="prompt" className="sr-only">
                                 Text prompt
                             </label>
+
 
                             <input
                                 id="prompt"
@@ -318,29 +329,22 @@ export default function Home() {
                             />
                         </div>
 
+
                         <div className="mt-8">
                             <GenerateButton />
                         </div>
 
-<<<<<<< HEAD
-                        {/* UPDATED: Successful download block */}
-                        {status === "success" && resultPath && (
-                            <div className="mt-12">
-                                <div className="w-full rounded-[20px] border border-white/10 bg-[#11131f]/70 px-8 py-7 text-center shadow-[0_10px_25px_rgba(0,0,0,0.25)]">
-                                    <a
-                                        href={resultPath}
-                                        download="generated_model.glb"
-=======
+
                         {status === "success" && result && (
                             <div className="mt-10">
                                 <div className="w-full rounded-[20px] border border-white/10 bg-[#11131f]/70 px-6 py-6 text-center">
                                     <a
                                         href={getDownloadUrl(result.id)}
->>>>>>> 16332e81f9ab4d3db1e4c7596c736e0b2b1f32e1
                                         className="flex w-full items-center justify-center rounded-[14px] border border-white/10 bg-[#171927] px-6 py-4 text-[22px] font-medium text-white transition hover:bg-white/5"
                                     >
                                         ↓ Download Model (glb)
                                     </a>
+
 
                                     <p className="mt-5 text-[18px] text-white/75">
                                         Prompt ID: {result.id}
@@ -348,11 +352,36 @@ export default function Home() {
                                     <p className="mt-2 text-[18px] text-white/75">
                                         Status: {result.status}
                                     </p>
+                                    <div className="mt-8 rounded-xl border border-[#ff8a2c]/30 bg-[#ff8a2c]/5 p-5 text-left">
+                                        <p className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#ff8a2c]">
+                                            Modify this model
+                                        </p>
+                                        <div className="flex gap-3">
+                                            <input
+                                                type="text"
+                                                value={modifyCommand}
+                                                onChange={(e) => setModifyCommand(e.target.value)}
+                                                placeholder="e.g., Make it taller, change to wood..."
+                                                className="flex-1 rounded-lg border border-white/10 bg-[#0f111a] px-4 py-3 text-sm text-white outline-none focus:border-[#ff8a2c]"
+                                            />
+                                            <button
+                                                onClick={() => {
+                                                    // Logging to console as required by the task
+                                                    console.log("Modify command saved to local state:", modifyCommand);
+                                                    alert(`Saved to state: "${modifyCommand}"`);
+                                                }}
+                                                disabled={!modifyCommand.trim()}
+                                                className="rounded-lg bg-[#ff8a2c] px-6 py-3 text-sm font-bold text-black transition hover:bg-[#ff9b4d] disabled:cursor-not-allowed disabled:opacity-50"
+                                            >
+                                                Modify
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         )}
 
-                        {/* UPDATED: Error block */}
+
                         {status === "error" && (
                             <div className="mt-8">
                                 <div className="w-full rounded-[16px] border border-red-500/30 bg-red-500/10 px-6 py-4 text-center text-red-400">
@@ -361,39 +390,10 @@ export default function Home() {
                                 </div>
                             </div>
                         )}
-<<<<<<< HEAD
-
-                        <div className="mt-10 flex justify-center gap-6 border-t border-white/10 pt-6">
-                            <button
-                                onClick={() => {
-                                    // Simulate the backend: pass the path to the current demo model
-                                    useGenerationStore.getState().setResultPath(selectedModel); 
-                                    useGenerationStore.getState().setStatus("success");
-                                }}
-                                className="text-sm text-green-500/70 transition hover:text-green-400"
-                            >
-                                [Dev Test: Success]
-                            </button>
-
-                            <button
-                                onClick={() => useGenerationStore.getState().setStatus("error")}
-                                className="text-sm text-red-500/70 transition hover:text-red-400"
-                            >
-                                [Dev Test: Error]
-                            </button>
-
-                            <button
-                                onClick={() => reset()}
-                                className="text-sm text-gray-500 transition hover:text-white"
-                            >
-                                [Dev Test: Reset to Idle]
-                            </button>
-                        </div>
-=======
->>>>>>> 16332e81f9ab4d3db1e4c7596c736e0b2b1f32e1
                     </div>
                 </section>
             </div>
+
 
             {authModal && (
                 <AuthModal

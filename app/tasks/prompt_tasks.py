@@ -4,6 +4,7 @@ system_msg = (
                 "No markdown, no triple backticks, no prose, no comments, no explanations. "
                 "The first line of your response must always be `import bpy`. "
 
+
                 "\n\n═══ MANDATORY CODE STRUCTURE ═══"
                 "\n1. import bpy and import math"
                 "\n2. Define helper functions"
@@ -11,7 +12,9 @@ system_msg = (
                 "\n4. Build parts bottom to top"
                 "\n5. Parent all parts to a root Empty"
 
+
                 "\n\n═══ HELPER FUNCTIONS — ALWAYS DEFINE THESE EXACTLY ═══"
+
 
                 "\n\ndef make_box(name, w, d, h, x, y, z):"
                 "\n    verts = [(-w/2,-d/2,0),(w/2,-d/2,0),(w/2,d/2,0),(-w/2,d/2,0),"
@@ -24,6 +27,7 @@ system_msg = (
                 "\n    bpy.context.collection.objects.link(obj)"
                 "\n    obj.location = (x, y, z)"
                 "\n    return obj"
+
 
                 "\n\ndef make_cylinder(name, r, h, x, y, z, segs=32):"
                 "\n    verts, faces = [], []"
@@ -43,6 +47,7 @@ system_msg = (
                 "\n    obj.location = (x, y, z)"
                 "\n    return obj"
 
+
                 "\n\ndef set_material(obj, name, r, g, b, roughness=0.5, metallic=0.0):"
                 "\n    mat = bpy.data.materials.new(name)"
                 "\n    mat.use_nodes = True"
@@ -53,17 +58,20 @@ system_msg = (
                 "\n    if obj.data.materials: obj.data.materials[0] = mat"
                 "\n    else: obj.data.materials.append(mat)"
 
+
                 "\n\ndef parent_objects(children, root_name):"
                 "\n    root = bpy.data.objects.new(root_name, None)"
                 "\n    bpy.context.collection.objects.link(root)"
                 "\n    for obj in children: obj.parent = root"
                 "\n    return root"
 
+
                 "\n\n═══ SCENE CLEAR ═══"
                 "\nbpy.ops.object.select_all(action='SELECT')"
                 "\nbpy.ops.object.delete(use_global=False)"
                 "\nfor block in bpy.data.meshes: bpy.data.meshes.remove(block)"
                 "\nfor block in bpy.data.materials: bpy.data.materials.remove(block)"
+
 
                 "\n\n═══ GEOMETRY RULES ═══"
                 "\n- Every solid part must be a closed 3D volume. Never use flat quads."
@@ -75,6 +83,7 @@ system_msg = (
                 "\n- Stack parts correctly: part B on top of part A → B's Z = A's Z + A's height."
                 "\n- Rear-attached parts (backrests, headboards): Y = -parent_depth/2 + part_depth/2"
                 "\n- All dimensions in real-world meters."
+
 
                 "\n\n═══ REFERENCE DIMENSIONS ═══"
                 "\nFURNITURE:"
@@ -89,19 +98,23 @@ system_msg = (
                 "\n- Bed (double):  frame 1.60x2.10x0.30 | mattress 1.54x2.04x0.20 | headboard 1.60x0.12x0.60"
                 "\n- Wardrobe:      body 1.20x0.60x2.00 | doors 0.58x0.02x1.90"
 
+
                 "\nARCHITECTURE:"
                 "\n- Door: 0.90x0.05x2.10 | Window: 1.20x0.05x1.20 @ Z=0.90"
                 "\n- Interior wall: length x 0.15 x 2.70 | Exterior wall: length x 0.30 x 2.70"
                 "\n- Stair step: 0.90x0.28x0.18 | Room: ~5.0x4.0x2.70"
+
 
                 "\nELECTRONICS:"
                 "\n- Monitor (27in): screen 0.61x0.05x0.37 | base 0.30x0.25x0.03 | neck 0.04x0.04x0.35"
                 "\n- Laptop: base 0.35x0.24x0.02 | screen 0.33x0.01x0.21"
                 "\n- Smartphone: 0.075x0.008x0.160 | TV (55in): 1.22x0.04x0.71"
 
+
                 "\nVEHICLES:"
                 "\n- Car: body 4.50x1.80x0.70 @ Z=0.35 | roof 3.00x1.75x0.40 @ Z=1.05 | wheels r=0.32 h=0.22"
                 "\n- Truck: cab 2.20x2.00x2.00 | trailer 8.00x2.40x2.70"
+
 
                 "\nHUMAN BODY:"
                 "\n- Head: sphere r=0.11 @ Z=1.62 | Neck: cyl r=0.05 h=0.08 @ Z=1.54"
@@ -109,9 +122,11 @@ system_msg = (
                 "\n- Upper arm: cyl r=0.045 h=0.28 | Forearm: cyl r=0.035 h=0.25 | Hand: 0.09x0.04x0.10"
                 "\n- Upper leg: cyl r=0.07 h=0.42 | Lower leg: cyl r=0.05 h=0.38 | Foot: 0.10x0.26x0.07"
 
+
                 "\nKITCHEN:"
                 "\n- Counter: 0.60x0.60x0.90 | Fridge: 0.70x0.70x1.80 | Oven: 0.60x0.60x0.85"
                 "\n- Mug: cyl r=0.04 h=0.10 | Plate: cyl r=0.13 h=0.02 | Bottle: cyl r=0.04 h=0.28"
+
 
                 "\n\n═══ MATERIALS ═══"
                 "\n- Assign a material to every part. Default to wood if unspecified."
@@ -124,16 +139,20 @@ system_msg = (
                 "\n- Concrete: set_material(obj, 'Concrete', 0.5, 0.5, 0.5, roughness=0.95)"
                 "\n- Skin:     set_material(obj, 'Skin', 0.87, 0.68, 0.54, roughness=0.7)"
 
+
                 "\n\n═══ EXPORT RULES — MANDATORY ═══"
                 "\n- The VERY LAST line of the code must ALWAYS be exactly:"
-                "\nbpy.ops.export_scene.gltf(filepath='result.glb', export_format='GLB')"
+                "\nbpy.ops.export_scene.gltf(filepath='static/models/result.glb', export_format='GLB')"
 )
+
 
 import os
 import subprocess
 import logging
 import traceback
 import time
+import shutil       
+import platform
 from dotenv import load_dotenv
 from worker import celery
 from app.extensions import db
@@ -141,7 +160,9 @@ from app.models.prompt import PromptRequest, PromptStatus
 from langchain_openai import ChatOpenAI
 import config
 
+
 load_dotenv()
+
 
 logging.basicConfig(
     level=logging.INFO,
@@ -150,12 +171,48 @@ logging.basicConfig(
 )
 logger = logging.getLogger("tasks.process_prompt")
 
+def get_blender_executable():
+    # 1. Check in .env file
+    env_blender = os.getenv("BLENDER_PATH")
+    if env_blender and os.path.exists(env_blender):
+        return env_blender
+        
+    # 2. Check system environment variables (PATH)
+    path_blender = shutil.which("blender")
+    if path_blender:
+        return path_blender
+        
+    # 3. Check standard Windows and Steam installation paths
+    if platform.system() == "Windows":
+        drives = ["C:\\", "D:\\"]
+        folders = [
+            r"Program Files\Blender Foundation",
+            r"Program Files (x86)\Steam\steamapps\common\Blender"
+        ]
+        for drive in drives:
+            for folder in folders:
+                search_path = os.path.join(drive, folder)
+                if os.path.exists(search_path):
+                    for root, dirs, files in os.walk(search_path):
+                        if "blender.exe" in files:
+                            return os.path.join(root, "blender.exe")
+                            
+    # 4. Check standard macOS path
+    elif platform.system() == "Darwin":
+        mac_path = "/Applications/Blender.app/Contents/MacOS/Blender"
+        if os.path.exists(mac_path):
+            return mac_path
+            
+    return None
+
 
 class ConfigurationError(Exception):
     """Missing or invalid environment / config values."""
 
+
 class LLMError(Exception):
     """Failure during LLM invocation."""
+
 
 class BlenderError(Exception):
     def __init__(self, message, stderr="", returncode=None):
@@ -163,12 +220,14 @@ class BlenderError(Exception):
         self.stderr = stderr
         self.returncode = returncode
 
+
 def _resolve_config(attr: str, fallback: str) -> str:
     return (
         getattr(config, attr, None)
         or getattr(getattr(config, "Config", object()), attr, None)
         or fallback
     )
+
 
 def _write_script(prompt_id: int, code: str) -> str:
     filename = f"temp_script_{prompt_id}.py"
@@ -180,6 +239,7 @@ def _write_script(prompt_id: int, code: str) -> str:
         raise OSError(f"Could not write temp script '{filename}': {exc}") from exc
     return filename
 
+
 def _cleanup(path: str) -> None:
     try:
         if path and os.path.exists(path):
@@ -188,10 +248,12 @@ def _cleanup(path: str) -> None:
     except OSError as exc:
         logger.warning("Could not remove temp file '%s': %s", path, exc)
 
+
 def _fail_prompt(prompt: PromptRequest, message: str) -> None:
     prompt.status = PromptStatus.FAILED
     prompt.error_message = message[:2000]  # guard against oversized DB writes
     db.session.commit()
+
 
 @celery.task(
     bind=True,
@@ -202,33 +264,42 @@ def process_prompt_task(self, prompt_id: int):
     from app import create_app
     app = create_app()
 
+
     with app.app_context():
         script_filename = None
+
 
         prompt = PromptRequest.query.get(prompt_id)
         if not prompt:
             logger.error("Prompt ID %s not found in database — aborting.", prompt_id)
             return
 
+
         logger.info("Task started | prompt_id=%s status=%s", prompt_id, prompt.status)
+
 
         try:
             prompt.status = PromptStatus.PROCESSING
             db.session.commit()
 
+
             base_url   = _resolve_config("LLM_BASE_URL",  "https://api.groq.com/openai/v1")
             model_name = _resolve_config("LLM_MODEL",     "llama-3.3-70b-versatile")
             api_key    = _resolve_config("LLM_API_KEY",   "")
 
+
             if not api_key:
                 raise ConfigurationError("LLM_API_KEY is empty — set it in .env or config.")
+
 
             logger.info(
                 "LLM config | base_url=%s model=%s prompt_id=%s",
                 base_url, model_name, prompt_id,
             )
 
+
             llm = ChatOpenAI(base_url=base_url, api_key=api_key, model=model_name)
+
 
             t0 = time.perf_counter()
             try:
@@ -239,97 +310,44 @@ def process_prompt_task(self, prompt_id: int):
             except Exception as exc:
                 raise LLMError(f"LLM call failed: {exc}") from exc
 
+
             elapsed_llm = time.perf_counter() - t0
             logger.info(
                 "LLM response received | prompt_id=%s elapsed=%.2fs tokens≈%d",
                 prompt_id, elapsed_llm, len(response.content) // 4,
             )
 
+
             generated_code = response.content.replace("```python", "").replace("```", "").strip()
+
 
             if "import bpy" not in generated_code:
                 raise LLMError("Generated code does not contain 'import bpy' — likely malformed.")
 
+
             output_filename = f"prompt_{prompt_id}.glb"
             output_path     = f"static/models/{output_filename}"
 
-<<<<<<< HEAD
-            import os
-            import shutil
-            import platform
-            import subprocess
 
-            def find_blender():
-                # 1. Check system variables (works if Blender is added to PATH)
-                path_blender = shutil.which("blender")
-                if path_blender:
-                    return path_blender
-                
-                # 2. Перевірка налаштувань розробника (.env файл)
-                env_blender = os.environ.get("BLENDER_PATH")
-                if env_blender and os.path.exists(env_blender):
-                    return env_blender
-                
-                # 3. Checking developer settings (.env file)
-                if platform.system() == "Windows":
-                    drives = ["C:\\", "D:\\", "E:\\", "F:\\"]
-                    base_folders = [
-                        r"Program Files\Blender Foundation",
-                        r"Program Files (x86)\Steam\steamapps\common\Blender",
-                        r"SteamLibrary\steamapps\common\Blender",
-                        r"Steam\steamapps\common\Blender"
-                    ]
-                    
-                    for drive in drives:
-                        for folder in base_folders:
-                            search_path = os.path.join(drive, folder)
-                            if os.path.exists(search_path):
-                                # os.walk will go into all subfolders (e.g. Blender 4.2) and find the exe file
-                                for root, dirs, files in os.walk(search_path):
-                                    if "blender.exe" in files:
-                                        return os.path.join(root, "blender.exe")
-                
-                # 4. Support for Mac OS (if someone on the team is on a Mac)
-                elif platform.system() == "Darwin":
-                    mac_path = "/Applications/Blender.app/Contents/MacOS/Blender"
-                    if os.path.exists(mac_path):
-                        return mac_path
-                
-                return None
-
-            # Calling our smart function
-            blender_path = find_blender()
-
-            # If nothing is found after all scans, we stop the process with a clear error.
-            if not blender_path:
-                raise Exception("Blender not found automatically! Please set the BLENDER_PATH environment variable in your .env file.")
-
-            print(f"Starting Blender in background using: {blender_path}...")
-            
-            # Launch Blender
-            result = subprocess.run([
-                blender_path,
-                "--background",
-                "--python", script_filename
-            ], capture_output=True, text=True)
-=======
             generated_code = generated_code.replace(
                 "bpy.ops.export_scene.gltf(filepath='static/models/result.glb', export_format='GLB')",
                 f"bpy.ops.export_scene.gltf(filepath='{output_path}', export_format='GLB')",
             )
 
+
             logger.debug("Generated code preview (first 300 chars):\n%s", generated_code[:300])
+
 
             script_filename = _write_script(prompt_id, generated_code)
 
-            blender_path = os.getenv("BLENDER_PATH")
+
+            blender_path = get_blender_executable()
             if not blender_path:
-                raise ConfigurationError("BLENDER_PATH is not set in the .env file.")
-            if not os.path.exists(blender_path):
-                raise ConfigurationError(f"Blender executable not found at: {blender_path}")
+                raise ConfigurationError("Blender executable not found automatically! Please set BLENDER_PATH in your .env file.")
 
             logger.info("Launching Blender | prompt_id=%s script=%s", prompt_id, script_filename)
             t1 = time.perf_counter()
+
 
             result = subprocess.run(
                 [blender_path, "--background", "--python", script_filename],
@@ -338,12 +356,13 @@ def process_prompt_task(self, prompt_id: int):
                 timeout=120,  # prevent runaway processes
             )
 
+
             elapsed_blender = time.perf_counter() - t1
             logger.info(
                 "Blender finished | prompt_id=%s returncode=%d elapsed=%.2fs",
                 prompt_id, result.returncode, elapsed_blender,
             )
->>>>>>> 16332e81f9ab4d3db1e4c7596c736e0b2b1f32e1
+
 
             if result.returncode != 0:
                 logger.error(
@@ -356,27 +375,13 @@ def process_prompt_task(self, prompt_id: int):
                     returncode=result.returncode,
                 )
 
-<<<<<<< HEAD
-            # ADDED: Take the file and put it directly into the Next.js folder with a unique name
-            generated_filename = f"result_{prompt_id}.glb"
-            frontend_path = os.path.join("frontend", "public", "models", generated_filename)
-            
-            if os.path.exists("result.glb"):
-                shutil.move("result.glb", frontend_path)
-            else:
-                raise Exception("Blender finished, but result.glb was not found!")
 
-            prompt.status = PromptStatus.COMPLETED
-            prompt.result_path = f"/models/{generated_filename}" # A path that the site will understand
-            db.session.commit()
-            
-            print(f"Task {prompt_id} is done. Model is at {frontend_path}")
-=======
             if result.stderr:
                 logger.warning(
                     "Blender stderr (non-fatal, prompt_id=%s):\n%s",
                     prompt_id, result.stderr[-1000:],
                 )
+
 
             if not os.path.exists(output_path):
                 raise BlenderError(
@@ -384,22 +389,25 @@ def process_prompt_task(self, prompt_id: int):
                     stderr=result.stderr,
                 )
 
+
             glb_size = os.path.getsize(output_path)
             logger.info(
                 "GLB created | prompt_id=%s path=%s size=%d bytes",
                 prompt_id, output_path, glb_size,
             )
 
+
             prompt.status      = PromptStatus.COMPLETED
             prompt.result_path = f"/static/models/{output_filename}"
             db.session.commit()
             logger.info("Task completed | prompt_id=%s result_path=%s", prompt_id, prompt.result_path)
->>>>>>> 16332e81f9ab4d3db1e4c7596c736e0b2b1f32e1
+
 
         except ConfigurationError as exc:
             logger.critical("Configuration error | prompt_id=%s: %s", prompt_id, exc)
             _fail_prompt(prompt, str(exc))
             # Don't retry — misconfiguration won't fix itself automatically.
+
 
         except LLMError as exc:
             logger.error("LLM error | prompt_id=%s: %s", prompt_id, exc)
@@ -409,6 +417,7 @@ def process_prompt_task(self, prompt_id: int):
             except self.MaxRetriesExceededError:
                 logger.error("Max retries exceeded for LLM | prompt_id=%s", prompt_id)
 
+
         except BlenderError as exc:
             logger.error(
                 "Blender error | prompt_id=%s returncode=%s: %s\nstderr tail:\n%s",
@@ -416,10 +425,12 @@ def process_prompt_task(self, prompt_id: int):
             )
             _fail_prompt(prompt, str(exc))
 
+
         except subprocess.TimeoutExpired:
             msg = "Blender process timed out after 120 seconds."
             logger.error("%s | prompt_id=%s", msg, prompt_id)
             _fail_prompt(prompt, msg)
+
 
         except Exception as exc:
             tb = traceback.format_exc()
@@ -429,6 +440,7 @@ def process_prompt_task(self, prompt_id: int):
                 raise self.retry(exc=exc)
             except self.MaxRetriesExceededError:
                 logger.error("Max retries exceeded | prompt_id=%s", prompt_id)
+
 
         finally:
             _cleanup(script_filename)
