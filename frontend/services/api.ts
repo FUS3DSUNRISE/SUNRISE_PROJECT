@@ -60,7 +60,7 @@ export async function pollPrompt(
 
 export async function generateModel(
     prompt: string,
-    onProcessing: () => void = () => {}
+    onProcessing: () => void = () => { }
 ) {
     const created = await createPrompt(prompt);
     return await pollPrompt(created.id, onProcessing);
@@ -72,6 +72,19 @@ export function getDownloadUrl(id: number) {
 
 export function getPreviewUrl(id: number) {
     return `${BASE_URL}/prompts/${id}/file`;
+}
+
+export async function getPreviewBlobUrl(id: number) {
+    const res = await fetch(`${BASE_URL}/prompts/${id}/file`, {
+        credentials: "include",
+    });
+
+    if (!res.ok) {
+        throw new Error("Failed to fetch preview file");
+    }
+
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
 }
 
 export async function signupUser(email: string, password: string) {

@@ -9,11 +9,8 @@ type PreviewCanvasProps = {
 };
 
 function Model({ modelPath }: PreviewCanvasProps) {
-    const gltf = useGLTF(modelPath, true, true, (loader) => {
-    (loader as any).setWithCredentials(true);
-    });
-
-    const clonedScene = useMemo(() => gltf.scene.clone(), [gltf.scene]);
+    const { scene } = useGLTF(modelPath);
+    const clonedScene = useMemo(() => scene.clone(), [scene]);
 
     return (
         <primitive
