@@ -13,6 +13,7 @@ export default function GenerateButton() {
     const setStatus = useGenerationStore((s) => s.setStatus);
     const setErrorMessage = useGenerationStore((s) => s.setErrorMessage);
     const setResult = useGenerationStore((s) => s.setResult);
+    const setPrompt = useGenerationStore((s) => s.setPrompt);
     const user = useAuthStore((s) => s.user);
 
 
