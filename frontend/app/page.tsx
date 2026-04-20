@@ -23,15 +23,11 @@ const demoModels = [
     { label: "Table", path: "/models/table.glb" },
 ];
 
-const defaultParameters: ModelParameters = {
-    size: { width: 1.5, height: 1.5, depth: 1.5 },
-    geometry: { complexity: 5, smoothness: 50 },
-    material: { type: "plastic", roughness: 0.5, metallic: 0.2 },
-};
-
 export default function Home() {
-    // 1. Added 'reset' here
-    const { status, prompt, setPrompt, errorMessage, result, reset } = useGenerationStore();
+    const { 
+        status, prompt, setPrompt, errorMessage, result, reset,
+        parameters, setParameters, modifyCommand, setModifyCommand 
+    } = useGenerationStore();
 
     const user = useAuthStore((s) => s.user);
     const logout = useAuthStore((s) => s.logout);
@@ -40,9 +36,10 @@ export default function Home() {
     const [selectedModel, setSelectedModel] = useState("/models/tiger.glb");
     const [showExamples, setShowExamples] = useState(false);
     const [showUserMenu, setShowUserMenu] = useState(false);
-    const [parameters, setParameters] = useState<ModelParameters>(defaultParameters);
     const [previewBlobUrl, setPreviewBlobUrl] = useState<string | null>(null);
-    const [modifyCommand, setModifyCommand] = useState("");
+
+    const [isRefineMode, setIsRefineMode] = useState(false);
+    const [refinePrompt, setRefinePrompt] = useState("");
 
     useEffect(() => {
         let objectUrl: string | null = null;
@@ -72,14 +69,13 @@ export default function Home() {
 
     const selectedModelLabel = demoModels.find((m) => m.path === selectedModel)?.label ?? "Tiger";
     
-    // 2. Fixed duplicate declaration
     const previewModelPath = previewBlobUrl ?? selectedModel;
     const userInitial = user?.email?.[0]?.toUpperCase() ?? "U";
 
     return (
-        <main className="min-h-screen bg-transparent text-white">
+        <main className="min-h-screen bg-transparent text-white overflow-x-hidden">
             <header className="sticky top-0 z-50 border-b border-white/10 bg-[#050608]/80 backdrop-blur-xl">
-                <div className="flex w-full items-center justify-between px-10 py-5 xl:px-16">
+                <div className="flex w-full items-center justify-between px-10 py-5">
                     <Image src={logo} alt="ScaiLab" className="h-8 w-auto object-contain" priority />
 
                     <nav className="relative flex items-center gap-6 text-[15px] text-white/90">
@@ -125,8 +121,9 @@ export default function Home() {
                 </div>
             </header>
 
-            <div className="w-full px-8 py-8 xl:px-12">
-                <section className="grid w-full grid-cols-1 gap-6 xl:grid-cols-[440px_1fr_420px] xl:items-start">
+            <div className="w-full px-12 py-8">
+                <section className="grid w-full grid-cols-[440px_1fr_420px] items-start gap-6">
+                    
                     {/* Parameters */}
                     <div className="rounded-[26px] border border-white/5 bg-[#0b1020]/70 p-4 shadow-inner">
                         <ParameterPanel value={parameters} onChange={setParameters} />
@@ -179,7 +176,7 @@ export default function Home() {
 
                         <div className="mt-8"><GenerateButton /></div>
 
-                        {/* 3. Combined Result Logic */}
+                        {/* Result Section */}
                         {status === "success" && result && (
                             <div className="mt-10 space-y-6">
                                 <div className="w-full rounded-[20px] border border-white/10 bg-[#11131f]/70 px-8 py-7 text-center">
@@ -189,9 +186,18 @@ export default function Home() {
                                                 <span className="h-2 w-2 rounded-full bg-green-400 animate-pulse" />
                                                 <span className="text-sm font-medium uppercase tracking-wider">Asset status: Ready</span>
                                             </div>
-                                            <a href={getDownloadUrl(result.id)} className="flex w-full items-center justify-center rounded-[14px] border border-white/10 bg-[#171927] px-6 py-4 text-[22px] font-medium text-white transition hover:bg-white/5">
-                                                ↓ Download Model (glb)
-                                            </a>
+
+                                            <div className="flex gap-3">
+                                                <a href={getDownloadUrl(result.id)} className="flex-1 flex items-center justify-center rounded-[14px] border border-white/10 bg-[#171927] px-4 py-4 text-[18px] font-medium text-white transition hover:bg-white/5">
+                                                    ↓ Download
+                                                </a>
+                                                <button 
+                                                    onClick={() => setIsRefineMode(!isRefineMode)}
+                                                    className={`flex-1 rounded-[14px] border px-4 py-4 text-[18px] font-medium transition ${isRefineMode ? "border-[#4f5dff] bg-[#4f5dff]/10 text-[#4f5dff]" : "border-white/10 bg-[#171927] text-white hover:bg-white/5"}`}
+                                                >
+                                                    Refine
+                                                </button>
+                                            </div>
                                         </>
                                     ) : (
                                         <div className="rounded-xl border border-yellow-500/30 bg-yellow-500/10 p-4">
@@ -205,8 +211,41 @@ export default function Home() {
                                         <p>Status: <span className="text-green-500 capitalize">{result.status}</span></p>
                                     </div>
 
-                                    {/* Modify Section Integrated */}
-                                    <div className="mt-8 rounded-xl border border-[#ff8a2c]/30 bg-[#ff8a2c]/5 p-5 text-left">
+                                    {/* Refine Section */}
+                                    {isRefineMode && (
+                                        <div className="mt-6 rounded-xl border border-[#4f5dff] bg-[#0b1020]/50 p-5 text-left transition-all">
+                                            <p className="mb-3 text-sm font-semibold uppercase text-[#4f5dff]">Iterative Refinement</p>
+                                            <div className="flex gap-3">
+                                                <input
+                                                    type="text"
+                                                    value={refinePrompt}
+                                                    onChange={(e) => setRefinePrompt(e.target.value)}
+                                                    placeholder="e.g., Add more realistic textures..."
+                                                    className="min-w-0 flex-1 rounded-lg border border-white/10 bg-[#0f111a] px-4 py-3 text-sm text-white outline-none focus:border-[#4f5dff]"
+                                                />
+                                                <button
+                                                    onClick={() => {
+                                                        const payload = {
+                                                            action: "refine",
+                                                            prompt: refinePrompt,
+                                                            parameters: parameters,
+                                                            target_model_id: result?.id 
+                                                        };
+                                                        console.log("Mock API Payload (Refine):", JSON.stringify(payload, null, 2));
+                                                        alert(`Refinement prompt saved. Check console!`);
+                                                        setRefinePrompt(""); 
+                                                    }}
+                                                    disabled={!refinePrompt.trim()}
+                                                    className="shrink-0 rounded-lg bg-[#4f5dff] px-6 py-3 text-sm font-bold text-white transition hover:bg-[#5d69ff] disabled:opacity-50"
+                                                >
+                                                    Refine
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Modify Section */}
+                                    <div className="mt-8 rounded-xl border border-[#ff8a2c] bg-[#0b1020]/50 p-5 text-left">
                                         <p className="mb-3 text-sm font-semibold uppercase text-[#ff8a2c]">Modify this model</p>
                                         <div className="flex gap-3">
                                             <input
@@ -214,12 +253,21 @@ export default function Home() {
                                                 value={modifyCommand}
                                                 onChange={(e) => setModifyCommand(e.target.value)}
                                                 placeholder="e.g., Make it taller..."
-                                                className="flex-1 rounded-lg border border-white/10 bg-[#0f111a] px-4 py-3 text-sm text-white"
+                                                className="min-w-0 flex-1 rounded-lg border border-white/10 bg-[#0f111a] px-4 py-3 text-sm text-white outline-none focus:border-[#ff8a2c]"
                                             />
                                             <button
-                                                onClick={() => alert(`Saved: "${modifyCommand}"`)}
+                                                onClick={() => {
+                                                    const payload = {
+                                                        action: "modify",
+                                                        command: modifyCommand,
+                                                        parameters: parameters,
+                                                        target_model_id: result?.id 
+                                                    };
+                                                    console.log("Mock API Payload (Modify):", JSON.stringify(payload, null, 2));
+                                                    alert(`Command saved. Check console!`);
+                                                }}
                                                 disabled={!modifyCommand.trim()}
-                                                className="rounded-lg bg-[#ff8a2c] px-6 py-3 text-sm font-bold text-black disabled:opacity-50"
+                                                className="shrink-0 rounded-lg bg-[#ff8a2c] px-6 py-3 text-sm font-bold text-black transition hover:bg-[#ff9b4d] disabled:opacity-50"
                                             >
                                                 Modify
                                             </button>
@@ -236,9 +284,26 @@ export default function Home() {
                             </div>
                         )}
 
-                        {/* Dev Tools */}
+                        {/* Dev Tools - FIXED HERE */}
                         <div className="mt-10 flex justify-center gap-6 border-t border-white/10 pt-6">
-                            <button onClick={() => useGenerationStore.getState().setStatus("success")} className="text-xs text-green-500/50 hover:text-green-400">[Test Success]</button>
+                            <button 
+                                onClick={() => {
+                                    const store = useGenerationStore.getState();
+                                    // We create a fake result based on the selected demo model
+                                    store.setResult({
+                                        id: 999, // Fake ID
+                                        prompt: store.prompt || "Mock generated model",
+                                        status: "completed",
+                                        result_path: selectedModel, // Path to the currently selected model
+                                        error_message: null
+                                    });
+                                    // Change the status to successful so that the block is displayed
+                                    store.setStatus("success");
+                                }} 
+                                className="text-xs text-green-500/50 hover:text-green-400"
+                            >
+                                [Test Success]
+                            </button>
                             <button onClick={() => useGenerationStore.getState().setStatus("error")} className="text-xs text-red-500/50 hover:text-red-400">[Test Error]</button>
                             <button onClick={() => { reset(); setPrompt(""); }} className="text-xs text-gray-500 hover:text-white">[Reset]</button>
                         </div>

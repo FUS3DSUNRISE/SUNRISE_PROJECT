@@ -1,14 +1,13 @@
 "use client";
 
-
 import { useState } from "react";
 import { useGenerationStore } from "@/state/generationStore";
 import { generateModel } from "@/services/api";
 import { useAuthStore } from "@/state/authStore";
 
-
 export default function GenerateButton() {
     const prompt = useGenerationStore((s) => s.prompt);
+    const parameters = useGenerationStore((s) => s.parameters); // Додали отримання параметрів зі стору
     const status = useGenerationStore((s) => s.status);
     const setStatus = useGenerationStore((s) => s.setStatus);
     const setErrorMessage = useGenerationStore((s) => s.setErrorMessage);
@@ -16,9 +15,7 @@ export default function GenerateButton() {
     const setPrompt = useGenerationStore((s) => s.setPrompt);
     const user = useAuthStore((s) => s.user);
 
-
     const [showSpinner, setShowSpinner] = useState(false);
-
 
     const handleGenerate = async () => {
         if (!prompt.trim()) {
@@ -32,27 +29,29 @@ export default function GenerateButton() {
             return;
         }
 
-
         try {
             setErrorMessage(null);
             setShowSpinner(true);
 
+            // DAY 7: Підготовка до реальної інтеграції (Payload)
+            const payload = {
+                action: "generate",
+                prompt: prompt,
+                parameters: parameters
+            };
+            console.log("Mock API Payload (Generate):", JSON.stringify(payload, null, 2));
 
             // STEP 1: submitted
             setStatus("submitted");
 
-
             await new Promise((resolve) => setTimeout(resolve, 500));
-
 
             // STEP 2: processing
             setStatus("processing");
 
-
             // STEP 3: call API
             const result = await generateModel(prompt);
             setResult(result);
-
 
             // STEP 4: success
             setStatus("success");
@@ -65,7 +64,6 @@ export default function GenerateButton() {
         }
     };
 
-
     const buttonText =
         status === "submitted"
             ? "Generating..."
@@ -76,7 +74,6 @@ export default function GenerateButton() {
                     : status === "error"
                         ? "Try Again"
                         : "Generate 3D Model";
-
 
     return (
         <button
