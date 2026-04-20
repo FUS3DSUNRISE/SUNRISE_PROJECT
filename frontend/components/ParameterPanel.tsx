@@ -1,6 +1,8 @@
 "use client";
 
+
 import { useEffect, useState } from "react";
+
 
 export type ModelParameters = {
     size: {
@@ -19,10 +21,12 @@ export type ModelParameters = {
     };
 };
 
+
 type ParameterPanelProps = {
     value: ModelParameters;
     onChange: (value: ModelParameters) => void;
 };
+
 
 export default function ParameterPanel({
     value,
@@ -38,6 +42,7 @@ export default function ParameterPanel({
         });
     };
 
+
     const updateGeometry = (
         key: keyof ModelParameters["geometry"],
         newValue: number
@@ -50,6 +55,7 @@ export default function ParameterPanel({
             },
         });
     };
+
 
     const updateMaterial = (
         key: keyof ModelParameters["material"],
@@ -64,8 +70,10 @@ export default function ParameterPanel({
         });
     };
 
+
     return (
         <div className="rounded-2xl border border-white/10 bg-[#11131f]/80 p-6 text-white shadow-[0_10px_25px_rgba(0,0,0,0.2)]">
+
 
             <div className="space-y-6">
                 <section>
@@ -100,6 +108,7 @@ export default function ParameterPanel({
                     </div>
                 </section>
 
+
                 <section>
                     <h3 className="mb-3 text-sm font-semibold uppercase tracking-[0.15em] text-[#ff8a2c]">
                         Geometry
@@ -124,6 +133,7 @@ export default function ParameterPanel({
                     </div>
                 </section>
 
+
                 <section>
                     <h3 className="mb-3 text-sm font-semibold uppercase tracking-[0.15em] text-[#ff8a2c]">
                         Material
@@ -144,6 +154,7 @@ export default function ParameterPanel({
                                 <option value="glass">Glass</option>
                             </select>
                         </div>
+
 
                         <SliderRow
                             label="Roughness"
@@ -168,6 +179,7 @@ export default function ParameterPanel({
     );
 }
 
+
 type SliderRowProps = {
     label: string;
     min: number;
@@ -176,6 +188,7 @@ type SliderRowProps = {
     value: number;
     onChange: (value: number) => void;
 };
+
 
 function SliderRow({
     label,

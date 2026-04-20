@@ -1,11 +1,13 @@
 import { create } from "zustand";
 
+
 export type GenerationStatus =
     | "idle"
     | "submitted"
     | "processing"
     | "success"
     | "error";
+
 
 export interface GenerationResult {
     id: number;
@@ -17,11 +19,13 @@ export interface GenerationResult {
     username?: string;
 }
 
+
 interface GenerationStore {
     prompt: string;
     status: GenerationStatus;
     errorMessage: string | null;
     result: GenerationResult | null;
+
 
     setPrompt: (prompt: string) => void;
     setStatus: (status: GenerationStatus) => void;
@@ -30,16 +34,19 @@ interface GenerationStore {
     reset: () => void;
 }
 
+
 export const useGenerationStore = create<GenerationStore>((set) => ({
     prompt: "",
     status: "idle",
     errorMessage: null,
     result: null,
 
+
     setPrompt: (prompt) => set({ prompt }),
     setStatus: (status) => set({ status }),
     setErrorMessage: (errorMessage) => set({ errorMessage }),
     setResult: (result) => set({ result }),
+
 
     reset: () =>
         set({

@@ -1,16 +1,20 @@
 "use client";
 
+
 import { Suspense, useMemo } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Environment, OrbitControls, useGLTF } from "@react-three/drei";
+
 
 type PreviewCanvasProps = {
     modelPath: string;
 };
 
+
 function Model({ modelPath }: PreviewCanvasProps) {
     const { scene } = useGLTF(modelPath);
     const clonedScene = useMemo(() => scene.clone(), [scene]);
+
 
     return (
         <primitive
@@ -20,6 +24,7 @@ function Model({ modelPath }: PreviewCanvasProps) {
         />
     );
 }
+
 
 export default function PreviewCanvas({ modelPath }: PreviewCanvasProps) {
     return (
@@ -31,10 +36,12 @@ export default function PreviewCanvas({ modelPath }: PreviewCanvasProps) {
             <directionalLight position={[10, 10, 10]} intensity={2.2} />
             <directionalLight position={[-8, 6, 4]} intensity={1.2} />
 
+
             <Suspense fallback={null}>
                 <Environment preset="city" />
                 <Model modelPath={modelPath} />
             </Suspense>
+
 
             <OrbitControls
                 makeDefault

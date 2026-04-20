@@ -1,9 +1,11 @@
 "use client";
 
+
 import { useState } from "react";
 import { useGenerationStore } from "@/state/generationStore";
 import { generateModel } from "@/services/api";
 import { useAuthStore } from "@/state/authStore";
+
 
 export default function GenerateButton() {
     const prompt = useGenerationStore((s) => s.prompt);
@@ -14,7 +16,9 @@ export default function GenerateButton() {
     const setPrompt = useGenerationStore((s) => s.setPrompt);
     const user = useAuthStore((s) => s.user);
 
+
     const [showSpinner, setShowSpinner] = useState(false);
+
 
     const handleGenerate = async () => {
         if (!prompt.trim()) {
@@ -28,21 +32,27 @@ export default function GenerateButton() {
             return;
         }
 
+
         try {
             setErrorMessage(null);
             setShowSpinner(true);
 
+
             // STEP 1: submitted
             setStatus("submitted");
 
+
             await new Promise((resolve) => setTimeout(resolve, 500));
+
 
             // STEP 2: processing
             setStatus("processing");
 
-            // STEP 3: call API 
+
+            // STEP 3: call API
             const result = await generateModel(prompt);
             setResult(result);
+
 
             // STEP 4: success
             setStatus("success");
@@ -55,16 +65,18 @@ export default function GenerateButton() {
         }
     };
 
+
     const buttonText =
         status === "submitted"
-            ? "Generating..." 
+            ? "Generating..."
             : status === "processing"
-                ? "Processing..." 
+                ? "Processing..."
                 : status === "success"
-                    ? "Generate Another" 
+                    ? "Generate Another"
                     : status === "error"
                         ? "Try Again"
                         : "Generate 3D Model";
+
 
     return (
         <button

@@ -5,6 +5,14 @@ venv/
 __pycache__/
 *.pyc
 instance/
+<<<<<<< HEAD
+
+# Temporary files from Blender and LLM generation
+temp_script_*.py
+static/models/*.glb
+frontend/public/models/result_*.glb
+=======
 static/models/*.glb
 node_modules/
 .next/
+>>>>>>> 16332e81f9ab4d3db1e4c7596c736e0b2b1f32e1
