@@ -158,6 +158,7 @@ from worker import celery
 from app.extensions import db
 from app.models.prompt import PromptRequest, PromptStatus
 from langchain_openai import ChatOpenAI
+from app.services.prompt_service import build_llm_prompt
 import config
 
 
@@ -260,7 +261,7 @@ def _fail_prompt(prompt: PromptRequest, message: str) -> None:
     max_retries=2,
     default_retry_delay=10,
 )
-def process_prompt_task(self, prompt_id: int):
+def process_prompt_task(self, prompt_id: int,fast_track_id=None):
     from app import create_app
     app = create_app()
 
@@ -282,43 +283,65 @@ def process_prompt_task(self, prompt_id: int):
             prompt.status = PromptStatus.PROCESSING
             db.session.commit()
 
+            if fast_track_id:
+                logger.info("Fast-track mode: scaling existing code from ID=%s", fast_track_id)
+                source = PromptRequest.query.get(fast_track_id)
+                if not source or not source.generated_code:
+                    raise LLMError("Source for fast-track not found or has no code.")
+                
+                generated_code = source.generated_code
+                old_p = source.parameters
+                new_p = prompt.parameters
 
-            base_url   = _resolve_config("LLM_BASE_URL",  "https://api.groq.com/openai/v1")
-            model_name = _resolve_config("LLM_MODEL",     "llama-3.3-70b-versatile")
-            api_key    = _resolve_config("LLM_API_KEY",   "")
+                if old_p and new_p:
+                    for key in ['width', 'height', 'depth']:
+                        generated_code = generated_code.replace(
+                            f"{key}={old_p['size'][key]}", 
+                            f"{key}={new_p['size'][key]}"
+                        )
+                    for key in ['roughness', 'metallic']:
+                        generated_code = generated_code.replace(
+                            f"{key}={old_p['material'][key]}", 
+                            f"{key}={new_p['material'][key]}"
+                        )
+            else:
 
-
-            if not api_key:
-                raise ConfigurationError("LLM_API_KEY is empty — set it in .env or config.")
-
-
-            logger.info(
-                "LLM config | base_url=%s model=%s prompt_id=%s",
-                base_url, model_name, prompt_id,
-            )
-
-
-            llm = ChatOpenAI(base_url=base_url, api_key=api_key, model=model_name)
-
-
-            t0 = time.perf_counter()
-            try:
-                response = llm.invoke([
-                    ("system", system_msg),
-                    ("human", prompt.prompt_text),
-                ])
-            except Exception as exc:
-                raise LLMError(f"LLM call failed: {exc}") from exc
-
-
-            elapsed_llm = time.perf_counter() - t0
-            logger.info(
-                "LLM response received | prompt_id=%s elapsed=%.2fs tokens≈%d",
-                prompt_id, elapsed_llm, len(response.content) // 4,
-            )
+                base_url   = _resolve_config("LLM_BASE_URL",  "https://api.groq.com/openai/v1")
+                model_name = _resolve_config("LLM_MODEL",     "llama-3.3-70b-versatile")
+                api_key    = _resolve_config("LLM_API_KEY",   "")
 
 
-            generated_code = response.content.replace("```python", "").replace("```", "").strip()
+                if not api_key:
+                    raise ConfigurationError("LLM_API_KEY is empty — set it in .env or config.")
+
+
+                logger.info(
+                    "LLM config | base_url=%s model=%s prompt_id=%s",
+                    base_url, model_name, prompt_id,
+                )
+
+
+                llm = ChatOpenAI(base_url=base_url, api_key=api_key, model=model_name)
+
+
+                t0 = time.perf_counter()
+                try:
+                    response = llm.invoke([
+                        ("system", system_msg),
+                        ("human", prompt.prompt_text),
+                    ])
+                except Exception as exc:
+                    raise LLMError(f"LLM call failed: {exc}") from exc
+
+
+                elapsed_llm = time.perf_counter() - t0
+                logger.info(
+                    "LLM response received | prompt_id=%s elapsed=%.2fs tokens≈%d",
+                    prompt_id, elapsed_llm, len(response.content) // 4,
+                )
+
+
+                generated_code = response.content.replace("```python", "").replace("```", "").strip()
 
 
             if "import bpy" not in generated_code:

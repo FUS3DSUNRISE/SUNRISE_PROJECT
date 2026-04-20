@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify, send_from_directory, current_app,
 from app.extensions import db
 from app.models.prompt import PromptRequest, PromptStatus
 from app.models.user import User
+from app.services.prompt_service import Parameters
 import os
 
 
@@ -25,6 +26,11 @@ def create_prompt():
 
     data = request.get_json()
 
+    try:
+        params_obj = Parameters(**data.get("parameters")) if "parameters" in data else None
+        validated_params = params_obj.dict() if params_obj else None
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
 
     if not data or "prompt" not in data:
         return jsonify({
@@ -40,9 +46,16 @@ def create_prompt():
             "message": "User not found"
         }), 404
 
+    #last request for this text (for slider logic)
+    last_req = PromptRequest.query.filter_by(
+        prompt_text=data["prompt"],
+        status=PromptStatus.COMPLETED,
+        user_id=user_id
+    ).order_by(PromptRequest.created_at.desc()).first()
 
     prompt = PromptRequest(
         prompt_text=data["prompt"],
+        parameters=validated_params,
         status=PromptStatus.QUEUED,
         user_id=user.id
     )
@@ -54,7 +67,7 @@ def create_prompt():
 
     # needs to stay here otherwise error
     from app.tasks.prompt_tasks import process_prompt_task
-    process_prompt_task.delay(prompt.id)
+    process_prompt_task.delay(prompt.id, fast_track_id=last_req.id if last_req else None)
 
 
     return jsonify({
@@ -203,4 +216,43 @@ def get_prompt_file(id):
 
     return send_from_directory(models_dir, filename)
 
+@prompts_bp.route("/<int:id>/update_params", methods=["POST"])
+def update_prompt_params(id):
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"status": "error", "message": "Not authenticated"}), 401
 
+    original_prompt = PromptRequest.query.get_or_404(id)
+
+    if original_prompt.user_id != user_id:
+        return jsonify({"status": "error", "message": "Unauthorized"}), 403
+
+    data = request.get_json()
+    if not data or "parameters" not in data:
+        return jsonify({"status": "error", "message": "Missing parameters"}), 400
+
+    try:
+        params_obj = Parameters(**data.get("parameters"))
+        validated_params = params_obj.dict()
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+
+    new_prompt = PromptRequest(
+        prompt_text=original_prompt.prompt_text,
+        parameters=validated_params,
+        status=PromptStatus.QUEUED,
+        user_id=user_id
+    )
+
+    db.session.add(new_prompt)
+    db.session.commit()
+
+    from app.tasks.prompt_tasks import process_prompt_task
+    process_prompt_task.delay(new_prompt.id, fast_track_id=original_prompt.id)
+
+    return jsonify({
+        "id": new_prompt.id,
+        "status": new_prompt.status.value,
+        "fast_track": True,
+        "message": f"Parameters updated for model {id}. Fast track initiated."
+    }), 200
