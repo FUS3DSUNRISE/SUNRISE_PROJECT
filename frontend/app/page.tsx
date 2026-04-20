@@ -95,8 +95,13 @@ export default function Home() {
 
     const selectedModelLabel =
         demoModels.find((model) => model.path === selectedModel)?.label ?? "Tiger";
+    
+    const previewModelPath =
+        status === "success" && result?.result_path
+            ? getPreviewUrl(result.id)
+            : selectedModel;
 
-    const previewModelPath = previewBlobUrl ?? selectedModel;
+
     const userInitial = user?.email?.[0]?.toUpperCase() ?? "U";
 
     return (
@@ -301,33 +306,79 @@ export default function Home() {
                         </div>
 
                         {status === "success" && result && (
-                            <div className="mt-10">
-                                <div className="w-full rounded-[20px] border border-white/10 bg-[#11131f]/70 px-6 py-6 text-center">
-                                    <a
-                                        href={getDownloadUrl(result.id)}
-                                        className="flex w-full items-center justify-center rounded-[14px] border border-white/10 bg-[#171927] px-6 py-4 text-[22px] font-medium text-white transition hover:bg-white/5"
-                                    >
-                                        ↓ Download Model (glb)
-                                    </a>
+                            <div className="mt-12">
+                                <div className="w-full rounded-[20px] border border-white/10 bg-[#11131f]/70 px-8 py-7 text-center shadow-[0_10px_25px_rgba(0,0,0,0.25)]">
+                                    
+                                    {/* Check if a file exists (result_path) */}
+                                    {result.result_path ? (
+                                        <>
+                                            <div className="mb-4 flex items-center justify-center gap-2 text-green-400">
+                                                <span className="h-2 w-2 rounded-full bg-green-400 animate-pulse" />
+                                                <span className="text-sm font-medium uppercase tracking-wider">Asset status: Ready</span>
+                                            </div>
+                                            <a
+                                                href={getDownloadUrl(result.id)}
+                                                className="flex w-full items-center justify-center rounded-[14px] border border-white/10 bg-[#171927] px-6 py-4 text-[22px] font-medium text-white transition hover:bg-white/5 hover:border-[#ff8a2c]/50"
+                                            >
+                                                ↓ Download Model (glb)
+                                            </a>
+                                        </>
+                                    ) : (
+                                        <div className="rounded-xl border border-yellow-500/30 bg-yellow-500/10 p-4">
+                                            <p className="text-yellow-500 font-medium">Completed — Asset pending</p>
+                                            <p className="text-sm text-white/50 mt-1">The model is ready, but the file is still being uploaded to the server. Please wait a moment.</p>
+                                        </div>
+                                    )}
 
-                                    <p className="mt-5 text-[18px] text-white/75">
-                                        Prompt ID: {result.id}
-                                    </p>
-                                    <p className="mt-2 text-[18px] text-white/75">
-                                        Status: {result.status}
-                                    </p>
+                                    <div className="mt-6 flex flex-col gap-2 border-t border-white/5 pt-6">
+                                        <p className="text-[14px] text-white/45">
+                                            ID: <span className="text-white/70">{result.id}</span>
+                                        </p>
+                                        <p className="text-[14px] text-white/45">
+                                            Status: <span className="text-green-500 capitalize">{result.status}</span>
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
                         )}
 
                         {status === "error" && (
                             <div className="mt-8">
-                                <div className="w-full rounded-[16px] border border-red-500/30 bg-red-500/10 px-6 py-4 text-center text-red-400">
-                                    {errorMessage ??
-                                        "Oops! Something went wrong while generating the model. Please check your prompt and try again."}
+                                <div className="w-full rounded-[16px] border border-red-500/30 bg-red-500/10 px-6 py-4 text-center">
+                                    <p className="text-red-400 font-semibold text-lg mb-1">Generation Failed</p>
+                                    <p className="text-red-400/80 text-sm">
+                                        {errorMessage || result?.error_message || "An unexpected error occurred. Please check your prompt or try again later."}
+                                    </p>
+                                    <p className="mt-3 text-xs text-white/30 uppercase tracking-widest">Error Details: {result?.id ? `ID ${result.id}` : "Missing Asset"}</p>
                                 </div>
                             </div>
                         )}
+
+                        <div className="mt-10 flex justify-center gap-6 border-t border-white/10 pt-6">
+                            <button
+                                onClick={() => useGenerationStore.getState().setStatus("success")}
+                                className="text-sm text-green-500/70 transition hover:text-green-400"
+                            >
+                                [Dev Test: Success]
+                            </button>
+
+                            <button
+                                onClick={() => useGenerationStore.getState().setStatus("error")}
+                                className="text-sm text-red-500/70 transition hover:text-red-400"
+                            >
+                                [Dev Test: Error]
+                            </button>
+
+                            <button
+                                onClick={() => {
+                                reset();
+                                setPrompt(""); 
+                            }}
+                                className="text-sm text-gray-500 transition hover:text-white"
+>
+                                [Dev Test: Reset to Idle]
+                            </button>
+                        </div>
                     </div>
                 </section>
             </div>
