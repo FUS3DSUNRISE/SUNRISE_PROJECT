@@ -49,12 +49,6 @@ def create_prompt():
             "message": "User not found"
         }), 404
 
-    #last request for this text (for slider logic)
-    last_req = PromptRequest.query.filter_by(
-        prompt_text=data["prompt"],
-        status=PromptStatus.COMPLETED,
-        user_id=user_id
-    ).order_by(PromptRequest.created_at.desc()).first()
 
     prompt = PromptRequest(
         parameters=validated_params,

@@ -51,11 +51,19 @@ class PromptService:
         
         # add material details
         mat = parameters.get('material', {})
-        material_type = mat.get('type', 'plastic')
+        material_type = mat.get('material_type', mat.get('type', 'plastic'))
         roughness = mat.get('roughness', 0.5)
         final_prompt += f"Material: {material_type}, roughness: {roughness}. "
         
         final_prompt += "Professional studio lighting, 4k render, photorealistic, objective view."
         
         return final_prompt
+
+    @staticmethod
+    def create_final_prompt(user_query, category, parameters=None):
+        return PromptService.generate_final_prompt(
+            user_prompt=user_query,
+            category=category,
+            parameters=parameters or {},
+        )
 
