@@ -15,6 +15,7 @@ class PromptRequest(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     prompt_text = db.Column(db.String(255), nullable=False)
+    category = db.Column(db.String(50), nullable=True)
     status = db.Column(db.Enum(PromptStatus), nullable=False)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     updated_at = db.Column(

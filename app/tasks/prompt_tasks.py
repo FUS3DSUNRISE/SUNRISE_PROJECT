@@ -159,7 +159,7 @@ from app.extensions import db
 from app.models.prompt import PromptRequest, PromptStatus
 from langchain_openai import ChatOpenAI
 import config
-
+from app.services.prompt_service import PromptService
 
 load_dotenv()
 
@@ -260,52 +260,54 @@ def _fail_prompt(prompt: PromptRequest, message: str) -> None:
     max_retries=2,
     default_retry_delay=10,
 )
-def process_prompt_task(self, prompt_id: int):
+def process_prompt_task(self, prompt_id: int, parameters=None): 
     from app import create_app
     app = create_app()
 
-
     with app.app_context():
         script_filename = None
-
+        
+        if parameters is None:
+            parameters = {}
 
         prompt = PromptRequest.query.get(prompt_id)
         if not prompt:
             logger.error("Prompt ID %s not found in database — aborting.", prompt_id)
             return
 
-
         logger.info("Task started | prompt_id=%s status=%s", prompt_id, prompt.status)
-
 
         try:
             prompt.status = PromptStatus.PROCESSING
             db.session.commit()
 
-
             base_url   = _resolve_config("LLM_BASE_URL",  "https://api.groq.com/openai/v1")
             model_name = _resolve_config("LLM_MODEL",     "llama-3.3-70b-versatile")
             api_key    = _resolve_config("LLM_API_KEY",   "")
 
-
             if not api_key:
                 raise ConfigurationError("LLM_API_KEY is empty — set it in .env or config.")
 
-
-            logger.info(
-                "LLM config | base_url=%s model=%s prompt_id=%s",
-                base_url, model_name, prompt_id,
-            )
-
-
             llm = ChatOpenAI(base_url=base_url, api_key=api_key, model=model_name)
 
+            try:
+                category = parameters.get('category', getattr(prompt, 'category', 'Simple Objects'))
+                
+                logger.info(f"Refining prompt for category: {category}")
+                
+                final_user_prompt = PromptService.create_final_prompt(
+                    user_query=prompt.prompt_text,
+                    category=category
+                )
+            except Exception as e:
+                logger.warning(f"PromptService failed, using raw prompt: {e}")
+                final_user_prompt = prompt.prompt_text
 
             t0 = time.perf_counter()
             try:
                 response = llm.invoke([
                     ("system", system_msg),
-                    ("human", prompt.prompt_text),
+                    ("human", final_user_prompt),
                 ])
             except Exception as exc:
                 raise LLMError(f"LLM call failed: {exc}") from exc

@@ -24,6 +24,9 @@ def create_prompt():
 
 
     data = request.get_json()
+    category = data.get("category", "Simple Objects")
+    print(f"DEBUG: Data received from frontend: {data}")
+    print(f"DEBUG: Category extracted: {category}")
 
 
     if not data or "prompt" not in data:
@@ -42,7 +45,8 @@ def create_prompt():
 
 
     prompt = PromptRequest(
-        prompt_text=data["prompt"],
+        prompt_text=data.get("prompt"),
+        category=category,
         status=PromptStatus.QUEUED,
         user_id=user.id
     )
@@ -54,12 +58,13 @@ def create_prompt():
 
     # needs to stay here otherwise error
     from app.tasks.prompt_tasks import process_prompt_task
-    process_prompt_task.delay(prompt.id)
+    process_prompt_task.delay(prompt_id=prompt.id, parameters=data.get("parameters", {}))
 
 
     return jsonify({
         "id": prompt.id,
         "prompt": prompt.prompt_text,
+        "category": prompt.category,
         "status": prompt.status.value,
         "user_id": prompt.user_id
     }), 201
@@ -88,6 +93,7 @@ def get_prompt(id):
     return jsonify({
         "id": prompt.id,
         "prompt": prompt.prompt_text,
+        "category": prompt.category,
         "status": prompt.status.value,
         "result_path": prompt.result_path,
         "error_message": prompt.error_message,
@@ -117,6 +123,7 @@ def get_my_prompts():
         prompts.append({
             "id": prompt.id,
             "prompt": prompt.prompt_text,
+            "category": prompt.category,
             "status": prompt.status.value,
             "result_path": prompt.result_path,
             "error_message": prompt.error_message
