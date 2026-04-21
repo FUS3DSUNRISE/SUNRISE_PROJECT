@@ -7,7 +7,8 @@ import { useAuthStore } from "@/state/authStore";
 
 export default function GenerateButton() {
     const prompt = useGenerationStore((s) => s.prompt);
-    const parameters = useGenerationStore((s) => s.parameters); // Додали отримання параметрів зі стору
+    const parameters = useGenerationStore((s) => s.parameters); 
+    const category = useGenerationStore((s) => s.parameters.category || "Simple Objects");
     const status = useGenerationStore((s) => s.status);
     const setStatus = useGenerationStore((s) => s.setStatus);
     const setErrorMessage = useGenerationStore((s) => s.setErrorMessage);
@@ -23,6 +24,13 @@ export default function GenerateButton() {
             setErrorMessage("Please enter a prompt before generating.");
             return;
         }
+
+        if (!category) {
+        setStatus("error");
+        setErrorMessage("Please select an object category.");
+        return;
+        }
+
         if (!user) {
             setStatus("error");
             setErrorMessage("You must be logged in before generating a model.");
@@ -50,7 +58,7 @@ export default function GenerateButton() {
             setStatus("processing");
 
             // STEP 3: call API
-            const result = await generateModel(prompt);
+            const result = await generateModel(prompt, category);
             setResult(result);
 
             // STEP 4: success

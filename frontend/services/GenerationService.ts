@@ -2,6 +2,7 @@ import { createPrompt, pollPrompt } from "./api";
 
 export async function runGenerationFlow(
     prompt: string,
+    category: string,
     onSubmitted: () => void,
     onProcessing: () => void,
     onSuccess: (result: any) => void,
@@ -10,7 +11,7 @@ export async function runGenerationFlow(
     try {
         onSubmitted();
 
-        const { id } = await createPrompt(prompt);
+        const { id } = await createPrompt(prompt, category);
 
         const result = await pollPrompt(id, onProcessing);
 

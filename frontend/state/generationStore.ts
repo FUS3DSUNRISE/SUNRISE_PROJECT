@@ -15,7 +15,8 @@ export interface GenerationResult {
 
 // Standard parameters
 const defaultParameters: ModelParameters = {
-    size: { width: 1.5, height: 1.5, depth: 1.5 },
+    category: "Simple Objects",
+    size: { width: 1, height: 1, depth: 1,},
     geometry: { complexity: 5, smoothness: 50 },
     material: { type: "plastic", roughness: 0.5, metallic: 0.2 },
 };
