@@ -66,19 +66,19 @@ export default function Home() {
         let isMounted = true;
 
         async function loadPreview() {
-            if (status === "success" && result) {
+            if (status === "success" && result && result.id !== 999) {
                 try {
                     objectUrl = await getPreviewBlobUrl(result.id);
-                    if (isMounted) {
-                        setPreviewBlobUrl(objectUrl);
-                    }
+                    if (isMounted) setPreviewBlobUrl(objectUrl);
                 } catch (error) {
                     console.error("Preview load failed:", error);
-                    if (isMounted) {
-                        setPreviewBlobUrl(null);
-                    }
+                    if (isMounted) setPreviewBlobUrl(null);
                 }
-            } else {
+            } 
+            else if (status === "success" && result && result.id === 999) {
+                 if (isMounted) setPreviewBlobUrl(result.result_path);
+            }
+            else {
                 setPreviewBlobUrl(null);
             }
         }
@@ -87,7 +87,7 @@ export default function Home() {
 
         return () => {
             isMounted = false;
-            if (objectUrl) {
+            if (objectUrl && objectUrl.startsWith('blob:')) {
                 URL.revokeObjectURL(objectUrl);
             }
         };
@@ -304,10 +304,11 @@ export default function Home() {
                             <div className="mt-10">
                                 <div className="w-full rounded-[20px] border border-white/10 bg-[#11131f]/70 px-6 py-6 text-center">
                                     <a
-                                        href={getDownloadUrl(result.id)}
-                                        className="flex w-full items-center justify-center rounded-[14px] border border-white/10 bg-[#171927] px-6 py-4 text-[22px] font-medium text-white transition hover:bg-white/5"
+                                        href={result.id === 999 ? result.result_path : getDownloadUrl(result.id)}
+                                        download={result.id === 999 ? "demo-model.glb" : undefined}
+                                        className="flex flex-1 items-center justify-center rounded-[14px] border border-white/10 bg-[#171927] px-4 py-4 text-base font-medium text-white transition hover:bg-white/5"
                                     >
-                                        ↓ Download Model (glb)
+                                        ↓ Download
                                     </a>
 
                                     <p className="mt-5 text-[18px] text-white/75">
