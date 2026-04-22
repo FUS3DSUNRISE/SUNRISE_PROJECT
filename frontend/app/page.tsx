@@ -274,6 +274,16 @@ export default function Home() {
                                     <option value="Architecture">Architecture</option>
                                     <option value="Decorative Objects">Decorative Objects</option>
                                     <option value="Electronics">Electronics</option>
+                                    <option value="Kitchenware">Kitchenware</option>
+                                    <option value="Lighting">Lighting</option>
+                                    <option value="Vehicles">Vehicles</option>
+                                    <option value="Characters / Creatures">Characters / Creatures</option>
+                                    <option value="Plants">Plants</option>
+                                    <option value="Clothing / Accessories">Clothing / Accessories</option>
+                                    <option value="Tools / Equipment">Tools / Equipment</option>
+                                    <option value="Toys / Game Props">Toys / Game Props</option>
+                                    <option value="Office Items">Office Items</option>
+                                    <option value="Bathroom Items">Bathroom Items</option>
                                 </select>
                             </div>
 

@@ -128,6 +128,73 @@ system_msg = (
                 "\n- Mug: cyl r=0.04 h=0.10 | Plate: cyl r=0.13 h=0.02 | Bottle: cyl r=0.04 h=0.28"
 
 
+                "\nDECORATIVE OBJECTS:"
+                "\n- Vase: body approx 0.18x0.18x0.32 | opening diameter 0.08"
+                "\n- Sculpture: pedestal 0.20x0.20x0.05 | figure height 0.45"
+                "\n- Wall mirror: 0.70x0.03x0.90 | frame thickness 0.04"
+
+
+                "\nKITCHENWARE:"
+                "\n- Mug: cyl r=0.04 h=0.10 | handle thickness ~0.01"
+                "\n- Plate: cyl r=0.13 h=0.02 | shallow center"
+                "\n- Bowl: top diameter 0.16 | base diameter 0.08 | h=0.07"
+                "\n- Bottle: cyl r=0.04 h=0.28 | neck r=0.015 h=0.06"
+                "\n- Pan: body diameter 0.28 h=0.06 | handle length 0.18"
+
+
+                "\nLIGHTING:"
+                "\n- Desk lamp: base 0.18x0.18x0.03 | stem h=0.35 | shade 0.16x0.16x0.12"
+                "\n- Floor lamp: base 0.30x0.30x0.04 | stem h=1.50 | shade 0.40x0.40x0.25"
+                "\n- Ceiling pendant: shade diameter 0.30 | shade h=0.22 | cable drop 0.80"
+
+
+                "\nCHARACTERS / CREATURES:"
+                "\n- Stylized character: head r=0.14 | torso 0.36x0.22x0.45 | limbs slightly simplified"
+                "\n- Creature figurine: body length 0.35 | body height 0.22 | stable stance with wide support"
+                "\n- Robot mascot: torso 0.30x0.20x0.40 | head 0.20x0.18x0.18 | limbs made of simple cylinders"
+
+
+                "\nPLANTS:"
+                "\n- Potted plant: pot diameter 0.20 h=0.18 | foliage total height 0.55"
+                "\n- Small cactus: pot diameter 0.12 h=0.10 | cactus body h=0.20"
+                "\n- Small tree: trunk diameter 0.12 h=1.40 | canopy diameter 0.90"
+
+
+                "\nCLOTHING / ACCESSORIES:"
+                "\n- Backpack: body 0.32x0.18x0.42 | top handle | two shoulder straps"
+                "\n- Shoe: sole 0.28x0.10x0.03 | upper h=0.10"
+                "\n- Hat: brim diameter 0.32 | crown diameter 0.18 h=0.12"
+                "\n- Watch: face diameter 0.04 | strap width 0.02"
+
+
+                "\nTOOLS / EQUIPMENT:"
+                "\n- Hammer: handle 0.03x0.03x0.28 | head 0.12x0.04x0.04"
+                "\n- Screwdriver: handle diameter 0.035 h=0.10 | shaft length 0.12"
+                "\n- Ladder: width 0.45 | side rails h=1.80 | rung spacing 0.28"
+                "\n- Toolbox: 0.40x0.20x0.22 | top handle centered"
+
+
+                "\nTOYS / GAME PROPS:"
+                "\n- Dice: cube 0.02x0.02x0.02"
+                "\n- Chess piece: base diameter 0.03 | total height 0.09"
+                "\n- Toy car: 0.14x0.07x0.06 | wheel r=0.02"
+                "\n- Figurine: base diameter 0.06 | total height 0.12"
+
+
+                "\nOFFICE ITEMS:"
+                "\n- Desk organizer: 0.22x0.14x0.12 | multiple compartments"
+                "\n- Keyboard: 0.44x0.14x0.03"
+                "\n- Mouse: 0.11x0.06x0.035"
+                "\n- Pen holder: diameter 0.08 h=0.11"
+
+
+                "\nBATHROOM ITEMS:"
+                "\n- Sink basin: 0.55x0.40x0.18"
+                "\n- Soap dispenser: base diameter 0.07 h=0.18 | pump h=0.03"
+                "\n- Towel rack: width 0.55 | bar diameter 0.02"
+                "\n- Bathtub: 1.60x0.75x0.55"
+
+
                 "\n\n═══ MATERIALS ═══"
                 "\n- Assign a material to every part. Default to wood if unspecified."
                 "\n- Wood:     set_material(obj, 'Wood', 0.55, 0.35, 0.15, roughness=0.8)"
