@@ -36,6 +36,29 @@ def wait_until_done(prompt_id, timeout=180, interval=5):
     print("Timeout while waiting for prompt completion.")
     return None
 
+def print_version_tree(version_history):
+    children_map = {}
+    nodes = {}
+
+    for item in version_history:
+        nodes[item["id"]] = item
+        parent_id = item["parent_prompt_id"]
+        children_map.setdefault(parent_id, []).append(item["id"])
+
+    def dfs(node_id, prefix=""):
+        node = nodes[node_id]
+        print(
+            f"{prefix}- Prompt {node['id']} "
+            f"(parent={node['parent_prompt_id']}, status={node['status']}) "
+            f"-> {node['result_path']}"
+        )
+        for child_id in children_map.get(node_id, []):
+            dfs(child_id, prefix + "  ")
+
+    roots = children_map.get(None, [])
+    for root_id in roots:
+        dfs(root_id)
+
 
 def main():
     print(">>> STEP 0: LOGIN")
@@ -167,6 +190,77 @@ def main():
         print("COMMAND + PARAMETERS NEW ID:", both_id)
         both_result = wait_until_done(both_id)
         print("COMMAND + PARAMETERS FINAL RESULT:", both_result)
+
+
+
+
+    print("\n>>> STEP 5: TEST MULTI-STEP CHAINING")
+    # v1 already = base_id
+    # create v2 from v1
+    v2_res = session.post(
+        f"{PROMPTS_URL}/{base_id}/modify",
+        json={"command": "make it taller"}
+    )
+    print("V2 STATUS:", v2_res.status_code)
+    print("V2 RESPONSE:", v2_res.text)
+
+    if v2_res.status_code != 201:
+        print("Failed to create v2. Stop chaining test.")
+        return
+
+    v2_id = v2_res.json()["id"]
+    print("V2 ID:", v2_id)
+    v2_result = wait_until_done(v2_id)
+    print("V2 FINAL RESULT:", v2_result)
+
+    if not v2_result or v2_result.get("status") != "completed":
+        print("V2 failed. Stopping chaining test.")
+        return
+
+    # create v3 from v2
+    v3_res = session.post(
+        f"{PROMPTS_URL}/{v2_id}/modify",
+        json={"command": "make it metallic"}
+    )
+    print("V3 STATUS:", v3_res.status_code)
+    print("V3 RESPONSE:", v3_res.text)
+
+    if v3_res.status_code != 201:
+        print("Failed to create v3.")
+        return
+
+    v3_id = v3_res.json()["id"]
+    print("V3 ID:", v3_id)
+    v3_result = wait_until_done(v3_id)
+    print("V3 FINAL RESULT:", v3_result)
+
+    # create v4 from v2 again (branching)
+    v4_res = session.post(
+        f"{PROMPTS_URL}/{v2_id}/modify",
+        json={"command": "make it shorter and wider"}
+    )
+    print("V4 STATUS:", v4_res.status_code)
+    print("V4 RESPONSE:", v4_res.text)
+
+    if v4_res.status_code != 201:
+        print("Failed to create v4.")
+        return
+
+    v4_id = v4_res.json()["id"]
+    print("V4 ID:", v4_id)
+    v4_result = wait_until_done(v4_id)
+    print("V4 FINAL RESULT:", v4_result)
+
+    # read version history from one branch node
+    history_res = session.get(f"{PROMPTS_URL}/{v4_id}")
+    print("HISTORY STATUS:", history_res.status_code)
+
+    if history_res.status_code == 200:
+        history_data = history_res.json()
+        print("\n>>> VERSION TREE")
+        print_version_tree(history_data["version_history"])
+    else:
+        print("HISTORY RESPONSE:", history_res.text)
 
 
 if __name__ == "__main__":

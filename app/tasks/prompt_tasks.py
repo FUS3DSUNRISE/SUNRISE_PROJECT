@@ -139,6 +139,16 @@ system_msg = (
                 "\n- Concrete: set_material(obj, 'Concrete', 0.5, 0.5, 0.5, roughness=0.95)"
                 "\n- Skin:     set_material(obj, 'Skin', 0.87, 0.68, 0.54, roughness=0.7)"
 
+                "\n\n═══ BLENDER API SAFETY RULES ═══"
+                "\n- Never assign to obj.type or any object's .type attribute."
+                "\n- To create a light, use bpy.data.lights.new(...) and then bpy.data.objects.new(..., light_data)."
+                "\n- Never write code like light1.type = 'LIGHT'."
+                "\n- Only use valid Blender Python API properties."
+                "\n- The script must run without errors from top to bottom."
+                "\n- Do not add cameras, lights, render settings, or scene styling unless explicitly required."
+                "\n- Focus on geometry, materials, parenting, and mandatory GLB export only."
+                "\n- Never use bpy.context.scene.render.resolution"
+                "\n- If render resolution is needed, use resolution_x and resolution_y only"
 
                 "\n\n═══ EXPORT RULES — MANDATORY ═══"
                 "\n- The VERY LAST line of the code must ALWAYS be exactly:"
@@ -295,6 +305,7 @@ def _build_generation_prompt(prompt: PromptRequest, parameters: dict) -> str:
     max_retries=2,
     default_retry_delay=10,
 )
+
 def process_prompt_task(self, prompt_id: int, parameters=None, fast_track_id=None):
     from app import create_app
 
@@ -338,20 +349,30 @@ def process_prompt_task(self, prompt_id: int, parameters=None, fast_track_id=Non
             llm = ChatOpenAI(base_url=base_url, api_key=api_key, model=model_name)
 
             if fast_track_id:
+
                 source = PromptRequest.query.get(fast_track_id)
                 if not source or not source.generated_code:
                     raise LLMError("Source for fast-track not found or has no code.")
 
                 logger.info("Fast-track mode: revising existing code from ID=%s", fast_track_id)
+
                 generation_prompt = _build_generation_prompt(prompt, parameters)
+
+                modification_command = prompt.modification_command or ""
+
                 human_prompt = (
-                    "Revise the existing Blender Python script below to satisfy the updated request.\n"
-                    "Preserve the overall script structure where possible, but update geometry and materials "
-                    "to match the new constraints exactly.\n\n"
-                    f"UPDATED REQUEST:\n{generation_prompt}\n\n"
+                    "Revise the existing Blender Python script below.\n"
+                    "You must update the model based on BOTH the updated parameters AND the modification command.\n\n"
+                    "If there is any conflict, the parameters must be strictly respected.\n\n"
+
+                    f"MODIFICATION COMMAND:\n{modification_command}\n\n"
+
+                    f"UPDATED REQUEST (parameters):\n{generation_prompt}\n\n"
+
                     "EXISTING SCRIPT:\n"
                     f"{source.generated_code}"
-                )
+            )
+                
             else:
                 human_prompt = _build_generation_prompt(prompt, parameters)
 
