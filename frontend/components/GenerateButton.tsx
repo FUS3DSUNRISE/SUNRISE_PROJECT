@@ -14,7 +14,8 @@ const FORBIDDEN_CHARACTERS_REGEX = /[<>[\]{}]/;
 
 export default function GenerateButton({ disabled = false }: GenerateButtonProps) {
     const prompt = useGenerationStore((s) => s.prompt);
-    const parameters = useGenerationStore((s) => s.parameters);
+    const parameters = useGenerationStore((s) => s.parameters); 
+    const category = useGenerationStore((s) => s.parameters.category || "Simple Objects");
     const status = useGenerationStore((s) => s.status);
     const setStatus = useGenerationStore((s) => s.setStatus);
     const setErrorMessage = useGenerationStore((s) => s.setErrorMessage);
@@ -42,6 +43,12 @@ export default function GenerateButton({ disabled = false }: GenerateButtonProps
             setErrorMessage("Prompt contains forbidden characters: < > [ ] { }");
             return;
         }
+      
+        if (!category) {
+        setStatus("error");
+        setErrorMessage("Please select an object category.");
+        return;
+        }
 
         if (!user) {
             setStatus("error");
@@ -65,7 +72,8 @@ export default function GenerateButton({ disabled = false }: GenerateButtonProps
 
             setStatus("processing");
 
-            const result = await generateModel(prompt);
+            // STEP 3: call API
+            const result = await generateModel(prompt, category);
             setResult(result);
 
             setStatus("success");

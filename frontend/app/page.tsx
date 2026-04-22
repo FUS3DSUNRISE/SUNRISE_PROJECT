@@ -11,6 +11,7 @@ import logo from "../public/logo.png";
 import { getDownloadUrl, getPreviewBlobUrl } from "@/services/api";
 import ParameterPanel from "@/components/ParameterPanel";
 import { useAuthStore } from "@/state/authStore";
+import { select } from "three/src/nodes/tsl/TSLBase.js";
 
 const demoModels = [
     { label: "Tiger", path: "/models/tiger.glb" },
@@ -247,11 +248,35 @@ export default function Home() {
                                 Type a prompt and generate 3D models instantly.
                             </p>
                         </div>
+                    </div>
 
-                        <div className="mt-8">
-                            <label htmlFor="prompt" className="sr-only">
-                                Prompt
+                    {/* Generation UI */}
+                    <div className="mt-20 rounded-[26px] border border-white/5 bg-[#0b1020]/70 p-6 shadow-inner">
+                        <p className="mb-4 text-sm font-semibold uppercase tracking-[0.2em] text-[#ff8a2c]">Synthetic assets, real workflow</p>
+                        <h1 className="text-5xl font-extrabold leading-tight">The Easiest Way to Create 3D Models</h1>
+                        
+                        <div className="mt-10 mb-6">
+                            <label className="block text-xs font-semibold uppercase tracking-wider text-white/40 mb-2 ml-2">
+                                Object Category
                             </label>
+
+                            <select 
+                                value={parameters.category || "Simple Objects"} 
+                                onChange={(e) => setParameters({ ...parameters, category: e.target.value })}
+                                className="w-full rounded-[20px] border border-white/10 bg-[#11131f]/80 px-5 py-4 text-white outline-none focus:border-[#ff8a2c] appearance-none cursor-pointer hover:bg-[#161927] transition-colors"
+        >
+                                <option value="Simple Objects">Simple Objects</option>
+                                <option value="Furniture">Furniture</option>
+                                <option value="Architecture">Architecture</option>
+                                <option value="Decorative Objects">Decorative Objects</option>
+                                <option value="Electronics">Electronics</option>
+                            </select>
+                        </div>
+
+                        <div className="mt-2">
+                          <label htmlFor="prompt" className="sr-only">
+                              Prompt
+                          </label>
                             <input
                                 id="prompt"
                                 type="text"

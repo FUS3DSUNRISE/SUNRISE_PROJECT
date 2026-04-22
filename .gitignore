@@ -19,3 +19,8 @@ frontend/public/models/result_*.glb
 
 .DS_Store
 Thumbs.db
+
+tests/tmp*/
+venv/
+*.pyc
+__pycache__/
