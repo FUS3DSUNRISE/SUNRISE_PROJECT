@@ -1,6 +1,12 @@
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
 class Config:
     DEBUG = True
-    SECRET_KEY = "BIP-scailab"
+
+    SECRET_KEY = os.getenv("SECRET_KEY", "dev-fallback-key-123")
 
     SQLALCHEMY_DATABASE_URI = "sqlite:///app.db"
     SQLALCHEMY_TRACK_MODIFICATIONS = False
@@ -9,7 +15,7 @@ class Config:
     CELERY_RESULT_BACKEND = "redis://localhost:6379/0"
 
     LLM_BASE_URL = "https://api.groq.com/openai/v1"
-    LLM_API_KEY = "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"
+    LLM_API_KEY = os.getenv("LLM_API_KEY")
     LLM_MODEL = "llama-3.3-70b-versatile"
 
     SESSION_COOKIE_SAMESITE = "Lax"

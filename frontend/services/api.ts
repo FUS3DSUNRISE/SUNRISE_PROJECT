@@ -1,13 +1,13 @@
 const BASE_URL = "http://localhost:5000";
 
-export async function createPrompt(prompt: string) {
+export async function createPrompt(prompt: string, category: string) {
     const res = await fetch(`${BASE_URL}/prompts`, {
         method: "POST",
         credentials: "include",
         headers: {
             "Content-Type": "application/json",
         },
-        body: JSON.stringify({ prompt }),
+        body: JSON.stringify({ prompt: prompt, category: category }),
     });
 
     const data = await res.json();
@@ -47,6 +47,9 @@ export async function pollPrompt(
         }
 
         if (status === "completed") {
+            if (!data.result_path) {
+                console.warn("Generation completed but result_path is missing");
+            }
             return data;
         }
 
@@ -60,9 +63,10 @@ export async function pollPrompt(
 
 export async function generateModel(
     prompt: string,
+    category: string,
     onProcessing: () => void = () => { }
 ) {
-    const created = await createPrompt(prompt);
+    const created = await createPrompt(prompt, category);
     return await pollPrompt(created.id, onProcessing);
 }
 

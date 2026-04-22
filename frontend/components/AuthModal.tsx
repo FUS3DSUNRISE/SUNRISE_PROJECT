@@ -1,13 +1,16 @@
 "use client";
 
+
 import { useState } from "react";
 import { loginUser, signupUser } from "@/services/api";
 import { useAuthStore } from "@/state/authStore";
+
 
 type Props = {
     type: "login" | "signup";
     onCloseAction: () => void;
 };
+
 
 export default function AuthModal({ type, onCloseAction }: Props) {
     const [email, setEmail] = useState("");
@@ -16,33 +19,40 @@ export default function AuthModal({ type, onCloseAction }: Props) {
     const [loading, setLoading] = useState(false);
     const setUser = useAuthStore((s) => s.setUser);
 
+
     const handleSubmit = async () => {
         if (!email.trim() || !password.trim()) {
             setErrorMessage("Email and password are required.");
             return;
         }
 
+
         try {
             setLoading(true);
             setErrorMessage(null);
+
 
             const data =
             type === "login"
                 ? await loginUser(email, password)
                 : await signupUser(email, password);
 
+
             setUser(data.user);
+
 
             console.log(`${type} success:`, data);
 
+
             onCloseAction();
-            
+           
         } catch (e: any) {
             setErrorMessage(e.message || "Something went wrong.");
         } finally {
             setLoading(false);
         }
     };
+
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
@@ -56,6 +66,7 @@ export default function AuthModal({ type, onCloseAction }: Props) {
                     </button>
                 </div>
 
+
                 <div className="flex flex-col gap-4">
                     <input
                         type="email"
@@ -65,6 +76,7 @@ export default function AuthModal({ type, onCloseAction }: Props) {
                         className="rounded-lg bg-[#1a1d2b] px-4 py-3 outline-none"
                     />
 
+
                     <input
                         type="password"
                         placeholder="Password"
@@ -73,11 +85,13 @@ export default function AuthModal({ type, onCloseAction }: Props) {
                         className="rounded-lg bg-[#1a1d2b] px-4 py-3 outline-none"
                     />
 
+
                     {errorMessage && (
                         <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
                             {errorMessage}
                         </div>
                     )}
+
 
                     <button
                         onClick={handleSubmit}
