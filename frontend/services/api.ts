@@ -1,13 +1,13 @@
 const BASE_URL = "http://localhost:5000";
 
-export async function createPrompt(prompt: string, category: string) {
+export async function createPrompt(prompt: string, category: string, parameters: any) {
     const res = await fetch(`${BASE_URL}/prompts`, {
         method: "POST",
         credentials: "include",
         headers: {
             "Content-Type": "application/json",
         },
-        body: JSON.stringify({ prompt: prompt, category: category }),
+        body: JSON.stringify({ prompt: prompt, category: category, parameters: parameters }),
     });
 
     const data = await res.json();
@@ -64,9 +64,10 @@ export async function pollPrompt(
 export async function generateModel(
     prompt: string,
     category: string,
+    parameters: any, 
     onProcessing: () => void = () => { }
 ) {
-    const created = await createPrompt(prompt, category);
+    const created = await createPrompt(prompt, category, parameters);
     return await pollPrompt(created.id, onProcessing);
 }
 

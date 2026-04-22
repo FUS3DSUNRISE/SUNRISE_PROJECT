@@ -45,9 +45,9 @@ export default function GenerateButton({ disabled = false }: GenerateButtonProps
         }
       
         if (!category) {
-        setStatus("error");
-        setErrorMessage("Please select an object category.");
-        return;
+            setStatus("error");
+            setErrorMessage("Please select an object category.");
+            return;
         }
 
         if (!user) {
@@ -56,6 +56,18 @@ export default function GenerateButton({ disabled = false }: GenerateButtonProps
             return;
         }
 
+        // 🟢 ДОДАНО: Форматуємо параметри під строгі вимоги бекенду (Pydantic)
+        const formattedParameters = {
+            size: parameters.size,
+            geometry: parameters.geometry,
+            material: {
+                // Міняємо "type" на "material_type" і робимо першу літеру великою (plastic -> Plastic)
+                material_type: parameters.material.type.charAt(0).toUpperCase() + parameters.material.type.slice(1),
+                roughness: parameters.material.roughness,
+                metallic: parameters.material.metallic
+            }
+        };
+
         try {
             setErrorMessage(null);
             setShowSpinner(true);
@@ -63,7 +75,7 @@ export default function GenerateButton({ disabled = false }: GenerateButtonProps
             const payload = {
                 action: "generate",
                 prompt,
-                parameters,
+                parameters: formattedParameters, 
             };
             console.log("Mock API Payload (Generate):", JSON.stringify(payload, null, 2));
 
@@ -72,8 +84,8 @@ export default function GenerateButton({ disabled = false }: GenerateButtonProps
 
             setStatus("processing");
 
-            // STEP 3: call API
-            const result = await generateModel(prompt, category);
+            // STEP 3: call API 
+            const result = await generateModel(prompt, category, formattedParameters);
             setResult(result);
 
             setStatus("success");
