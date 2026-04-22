@@ -5,7 +5,14 @@ import { useGenerationStore } from "@/state/generationStore";
 import { generateModel } from "@/services/api";
 import { useAuthStore } from "@/state/authStore";
 
-export default function GenerateButton() {
+type GenerateButtonProps = {
+    disabled?: boolean;
+};
+
+const MAX_PROMPT_LENGTH = 120;
+const FORBIDDEN_CHARACTERS_REGEX = /[<>[\]{}]/;
+
+export default function GenerateButton({ disabled = false }: GenerateButtonProps) {
     const prompt = useGenerationStore((s) => s.prompt);
     const parameters = useGenerationStore((s) => s.parameters); 
     const category = useGenerationStore((s) => s.parameters.category || "Simple Objects");
@@ -13,7 +20,7 @@ export default function GenerateButton() {
     const setStatus = useGenerationStore((s) => s.setStatus);
     const setErrorMessage = useGenerationStore((s) => s.setErrorMessage);
     const setResult = useGenerationStore((s) => s.setResult);
-    const setPrompt = useGenerationStore((s) => s.setPrompt);
+
     const user = useAuthStore((s) => s.user);
 
     const [showSpinner, setShowSpinner] = useState(false);
@@ -21,10 +28,22 @@ export default function GenerateButton() {
     const handleGenerate = async () => {
         if (!prompt.trim()) {
             setStatus("error");
-            setErrorMessage("Please enter a prompt before generating.");
+            setErrorMessage("Prompt cannot be empty.");
             return;
         }
 
+        if (prompt.length > MAX_PROMPT_LENGTH) {
+            setStatus("error");
+            setErrorMessage(`Prompt is too long. Maximum length is ${MAX_PROMPT_LENGTH} characters.`);
+            return;
+        }
+
+        if (FORBIDDEN_CHARACTERS_REGEX.test(prompt)) {
+            setStatus("error");
+            setErrorMessage("Prompt contains forbidden characters: < > [ ] { }");
+            return;
+        }
+      
         if (!category) {
         setStatus("error");
         setErrorMessage("Please select an object category.");
@@ -41,27 +60,22 @@ export default function GenerateButton() {
             setErrorMessage(null);
             setShowSpinner(true);
 
-            // DAY 7: Підготовка до реальної інтеграції (Payload)
             const payload = {
                 action: "generate",
-                prompt: prompt,
-                parameters: parameters
+                prompt,
+                parameters,
             };
             console.log("Mock API Payload (Generate):", JSON.stringify(payload, null, 2));
 
-            // STEP 1: submitted
             setStatus("submitted");
-
             await new Promise((resolve) => setTimeout(resolve, 500));
 
-            // STEP 2: processing
             setStatus("processing");
 
             // STEP 3: call API
             const result = await generateModel(prompt, category);
             setResult(result);
 
-            // STEP 4: success
             setStatus("success");
         } catch {
             setResult(null);
@@ -86,8 +100,9 @@ export default function GenerateButton() {
     return (
         <button
             onClick={handleGenerate}
-            disabled={status === "submitted" || status === "processing"}
-            className="w-full rounded-[18px] bg-[#ff8a2c] px-8 py-4 text-[20px] font-semibold text-black shadow-[0_12px_30px_rgba(255,138,44,0.28)] transition hover:bg-[#ff9b4d] disabled:cursor-not-allowed disabled:opacity-70">
+            disabled={disabled || status === "submitted" || status === "processing"}
+            className="w-full rounded-[18px] bg-[#ff8a2c] px-8 py-4 text-[20px] font-semibold text-black shadow-[0_12px_30px_rgba(255,138,44,0.28)] transition hover:bg-[#ff9b4d] disabled:cursor-not-allowed disabled:opacity-50"
+        >
             <span className="flex items-center justify-center gap-3">
                 {showSpinner && (
                     <span className="h-6 w-6 animate-spin rounded-full border-2 border-white/30 border-t-white" />
