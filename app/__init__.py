@@ -1,5 +1,5 @@
 from flask import Flask
-from app.extensions import db
+from app.extensions import db, migrate
 from app.routes.prompts import prompts_bp
 from app.routes.auth import auth_bp
 from flask_cors import CORS
@@ -26,6 +26,7 @@ def create_app():
 
     app.config.from_object("config.Config")
     db.init_app(app)
+    migrate.init_app(app, db)
 
 
     app.register_blueprint(prompts_bp, url_prefix="/prompts")
