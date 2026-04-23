@@ -239,12 +239,12 @@ export default function Home() {
                         </div>
                     </section>
 
-                    <aside className="rounded-[24px] border border-white/10 bg-[#0b1020]/50 p-6 shadow-inner">
+                    <aside className="rounded-[24px] border border-white/10 bg-[#0b1020]/50 p-5 shadow-inner sm:p-6">
                         <div>
                             <p className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[#ff8a2c]">
                                 Synthetic assets, real workflow
                             </p>
-                            <h1 className="text-4xl font-extrabold leading-[1.02] xl:text-5xl">
+                            <h1 className="text-4xl font-extrabold leading-[1.02] sm:text-5xl xl:text-5xl">
                                 The Easiest Way
                                 <br />
                                 to Create 3D Models
@@ -254,12 +254,8 @@ export default function Home() {
                             </p>
                         </div>
 
-                        {/* Generation UI */}
-                        <div className="mt-20 rounded-[26px] border border-white/5 bg-[#0b1020]/70 p-6 shadow-inner">
-                            <p className="mb-4 text-sm font-semibold uppercase tracking-[0.2em] text-[#ff8a2c]">Synthetic assets, real workflow</p>
-                            <h1 className="text-5xl font-extrabold leading-tight">The Easiest Way to Create 3D Models</h1>
-                            
-                            <div className="mt-10">
+                        <div className="mt-8 rounded-[26px] border border-white/5 bg-[#0b1020]/70 p-5 shadow-inner sm:p-6">
+                            <div>
                                 <label htmlFor="prompt" className="sr-only">
                                     Prompt
                                 </label>
@@ -308,7 +304,7 @@ export default function Home() {
                                                             </span>
                                                         </div>
 
-                                                        <div className="flex gap-3">
+                                                        <div className="flex flex-col gap-3 sm:flex-row">
                                                             <a
                                                                 href={result.id === 999 ? result.result_path : getDownloadUrl(result.id)}
                                                                 download={result.id === 999 ? "demo-model.glb" : undefined}
@@ -356,7 +352,7 @@ export default function Home() {
                                                     <p className="mb-3 text-sm font-semibold uppercase text-[#4f5dff]">
                                                         Iterative refinement
                                                     </p>
-                                                    <div className="flex gap-3">
+                                                    <div className="flex flex-col gap-3 sm:flex-row">
                                                         <input
                                                             type="text"
                                                             value={refinePrompt}
@@ -392,7 +388,7 @@ export default function Home() {
                                                 <p className="mb-3 text-sm font-semibold uppercase text-[#ff8a2c]">
                                                     Modify this model
                                                 </p>
-                                                <div className="flex gap-3">
+                                                <div className="flex flex-col gap-3 sm:flex-row">
                                                     <input
                                                         type="text"
                                                         value={modifyCommand}
@@ -436,7 +432,7 @@ export default function Home() {
                             ) : null}
 
                             <div className="mt-8 border-t border-white/10 pt-6">
-                                <div className="flex justify-center gap-6">
+                                <div className="flex flex-wrap justify-center gap-4 sm:gap-6">
                                     <button
                                         onClick={() => {
                                             const store = useGenerationStore.getState();
