@@ -63,11 +63,9 @@ export default function Home() {
                     console.error("Preview load failed:", error);
                     if (isMounted) setPreviewBlobUrl(null);
                 }
-            } 
-            else if (status === "success" && result && result.id === 999) {
-                 if (isMounted) setPreviewBlobUrl(result.result_path);
-            }
-            else {
+            } else if (status === "success" && result && result.id === 999) {
+                if (isMounted) setPreviewBlobUrl(result.result_path);
+            } else {
                 setPreviewBlobUrl(null);
             }
         }
@@ -76,7 +74,7 @@ export default function Home() {
 
         return () => {
             isMounted = false;
-            if (objectUrl && objectUrl.startsWith('blob:')) {
+            if (objectUrl && objectUrl.startsWith("blob:")) {
                 URL.revokeObjectURL(objectUrl);
             }
         };
@@ -86,6 +84,18 @@ export default function Home() {
     const userInitial = user?.email?.[0]?.toUpperCase() ?? "U";
 
     const isGenerateDisabled = prompt.length > MAX_PROMPT_LENGTH;
+
+    const getFormattedParameters = () => ({
+        size: parameters.size,
+        geometry: parameters.geometry,
+        material: {
+            material_type:
+                parameters.material.type.charAt(0).toUpperCase() +
+                parameters.material.type.slice(1),
+            roughness: parameters.material.roughness,
+            metallic: parameters.material.metallic,
+        },
+    });
 
     return (
         <main className="min-h-screen overflow-x-hidden bg-[#050608] text-white">
@@ -365,14 +375,14 @@ export default function Home() {
                                                                 const payload = {
                                                                     action: "refine",
                                                                     prompt: refinePrompt,
-                                                                    parameters,
+                                                                    parameters: getFormattedParameters(),
                                                                     target_model_id: result?.id,
                                                                 };
                                                                 console.log(
                                                                     "Mock API Payload (Refine):",
                                                                     JSON.stringify(payload, null, 2)
                                                                 );
-                                                                alert("Refinement prompt saved. Check console!");
+                                                                alert("Refinement prompt saved. Parameters formatted! Check console!");
                                                                 setRefinePrompt("");
                                                             }}
                                                             disabled={!refinePrompt.trim()}
@@ -401,14 +411,15 @@ export default function Home() {
                                                             const payload = {
                                                                 action: "modify",
                                                                 command: modifyCommand,
-                                                                parameters,
+                                                                parameters: getFormattedParameters(),
                                                                 target_model_id: result?.id,
                                                             };
+
                                                             console.log(
                                                                 "Mock API Payload (Modify):",
                                                                 JSON.stringify(payload, null, 2)
                                                             );
-                                                            alert("Command saved. Check console!");
+                                                            alert("Command saved. Parameters formatted! Check console!");
                                                         }}
                                                         disabled={!modifyCommand.trim()}
                                                         className="shrink-0 rounded-lg bg-[#ff8a2c] px-6 py-3 text-sm font-bold text-black transition hover:bg-[#ff9b4d] disabled:opacity-50"
