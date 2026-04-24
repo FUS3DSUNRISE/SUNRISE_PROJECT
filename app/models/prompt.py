@@ -8,6 +8,9 @@ class PromptStatus(enum.Enum):
     PROCESSING = "processing"
     COMPLETED = "completed"
     FAILED = "failed"
+    AMBIGUOUS = "ambiguous"
+    AWAITING_CLARIFICATION = "awaiting_clarification"
+    INVALID = "invalid"
 
 
 class PromptRequest(db.Model):
