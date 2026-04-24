@@ -56,39 +56,6 @@ CATEGORY_HINTS = {
     ),
 }
 
-class PromptService:
-    @staticmethod
-    def classify_intent(prompt_text, llm_client):
-        families_list = list(CATEGORY_HINTS.keys())
-        
-        system_prompt = (
-            "You are a 3D object classifier. Analyze the user prompt.\n"
-            f"Available Families: {', '.join(families_list)}\n\n"
-            "Return JSON only:\n"
-            "{\n"
-            "  'action': 'proceed' | 'clarify' | 'block',\n"
-            "  'family': 'Family Name' | null,\n"
-            "  'reason': 'Explanation why you need clarification or why it is blocked'\n"
-            "}\n"
-            "Rules:\n"
-            "- Known object: proceed.\n"
-            "- Ambiguous/Unknown: clarify.\n"
-            "- Not an object/Nonsense: block."
-        )
-
-        try:
-            response = llm_client.invoke([
-                ("system", system_prompt),
-                ("human", prompt_text)
-            ])
-            import json
-            
-            clean_content = response.content.replace("```json", "").replace("```", "").strip()
-            return json.loads(clean_content)
-        except Exception:
-
-            return {"action": "proceed", "family": "Simple Objects", "reason": None}
-        
 class SizeParams(BaseModel):
     width: float = Field(..., ge=0.5, le=5)
     height: float = Field(..., ge=0.5, le=5)
@@ -126,6 +93,36 @@ def build_llm_prompt(prompt_text: str, params: Parameters) -> str:
 
 class PromptService:
     @staticmethod
+    def classify_intent(prompt_text, llm_client):
+        families_list = list(CATEGORY_HINTS.keys())
+
+        system_prompt = (
+            "You are a 3D object classifier. Analyze the user prompt.\n"
+            f"Available Families: {', '.join(families_list)}\n\n"
+            "Return JSON only:\n"
+            "{\n"
+            "  'action': 'proceed' | 'clarify' | 'block',\n"
+            "  'family': 'Family Name' | null,\n"
+            "  'reason': 'Explanation why you need clarification or why it is blocked'\n"
+            "}\n"
+            "Rules:\n"
+            "- Known object: proceed.\n"
+            "- Ambiguous/Unknown: clarify.\n"
+            "- Not an object/Nonsense: block."
+        )
+
+        try:
+            response = llm_client.invoke([
+                ("system", system_prompt),
+                ("human", prompt_text),
+            ])
+
+            clean_content = response.content.replace("```json", "").replace("```", "").strip()
+            return json.loads(clean_content)
+        except Exception:
+            return {"action": "proceed", "family": "Simple Objects", "reason": None}
+
+    @staticmethod
     def generate_final_prompt(user_prompt, category, parameters):
 
         final_prompt = f"High-quality 3D model of a {category}: {user_prompt}. "
@@ -157,4 +154,3 @@ class PromptService:
             category=category,
             parameters=parameters or {},
         )
-
