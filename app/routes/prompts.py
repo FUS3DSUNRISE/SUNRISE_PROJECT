@@ -4,6 +4,8 @@ from app.models.prompt import PromptRequest, PromptStatus
 from app.models.user import User
 from app.services.prompt_service import Parameters
 from app.services.ambiguity_detector import AmbiguityDetector
+from app.services.prompt_service import PromptService
+from langchain_openai import ChatOpenAI
 import os
 
 
@@ -53,13 +55,26 @@ def create_prompt():
 
 
     is_clear, reason = AmbiguityDetector.analyze_prompt(prompt_text)
-    if not is_clear:
+    llm_for_classify = ChatOpenAI(
+        base_url=current_app.config.get("LLM_BASE_URL", "https://api.groq.com/openai/v1"), 
+        api_key=current_app.config.get("LLM_API_KEY", ""), 
+        model=current_app.config.get("LLM_MODEL", "llama-3.3-70b-versatile")
+    )
+    classification = PromptService.classify_intent(prompt_text, llm_for_classify)
+
+    # BLOCK
+    if classification["action"] == "block":
+        return jsonify({"status": "error", "message": classification["reason"]}), 400
+
+    # CLARIFY 
+    if not is_clear or classification["action"] == "clarify":
+        final_reason = classification.get("reason") or reason
         prompt = PromptRequest(
             parameters=validated_params,
             prompt_text=prompt_text,
-            category=category,
-            status=PromptStatus.AMBIGUOUS, 
-            error_message=reason,
+            category="Unknown",
+            status=PromptStatus.AWAITING_CLARIFICATION, 
+            error_message=final_reason,
             user_id=user.id
         )
         db.session.add(prompt)
@@ -67,11 +82,12 @@ def create_prompt():
 
         return jsonify({
             "id": prompt.id,
-            "prompt": prompt.prompt_text,
-            "status": "ambiguous",
-            "message": "The request needs clarification",
-            "reason": reason
-        }), 400
+            "status": "clarify",
+            "message": final_reason
+        }), 200 
+
+    # PROCEED
+    detected_category = classification.get("family") or category
 
 
 
