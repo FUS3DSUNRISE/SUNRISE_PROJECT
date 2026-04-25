@@ -1,7 +1,6 @@
 from __future__ import annotations
-
-from dataclasses import dataclass, field
 from pathlib import Path
+from dataclasses import dataclass, field
 from statistics import mean
 from typing import Dict, Iterable, List
 import json
@@ -140,18 +139,16 @@ def iter_test_prompts() -> Iterable[TestPrompt]:
 
 
 def default_prompt_records() -> List[Dict[str, str]]:
-    return [_prompt_record(prompt) for prompt in iter_test_prompts()]
-
-
-def _prompt_record(prompt: TestPrompt) -> Dict[str, str]:
-    return {
-        "name": prompt.name,
-        "difficulty": prompt.difficulty,
-        "prompt": prompt.prompt,
-        "target_shape": prompt.target_shape,
-        "notes": prompt.notes,
-    }
-
+    return [
+        {
+            "name": prompt.name,
+            "difficulty": prompt.difficulty,
+            "prompt": prompt.prompt,
+            "target_shape": prompt.target_shape,
+            "notes": prompt.notes,
+        }
+        for prompt in iter_test_prompts()
+    ]
 
 def build_result(
     test_prompt: TestPrompt,
@@ -193,20 +190,16 @@ def _prompt_index_from_records(
 
 
 def create_score_state(report: BenchmarkReport | None = None) -> Dict[str, Dict[str, float | str]]:
+    state: Dict[str, Dict[str, float | str]] = {}
     if not report:
-        return {}
+        return state
 
-    return {
-        result.test_prompt.name: {
+    for result in report.results:
+        state[result.test_prompt.name] = {
             **result.scores.as_dict(),
             "reviewer_notes": result.reviewer_notes,
         }
-        for result in report.results
-    }
-
-
-def _score_values_from_state(saved: Dict[str, float | str]) -> Dict[str, float]:
-    return {criterion: float(saved.get(criterion, 0.0)) for criterion in BENCHMARK_CRITERIA}
+    return state
 
 
 def report_from_state(
@@ -225,7 +218,12 @@ def report_from_state(
         report.add_result(
             build_result(
                 prompt,
-                **_score_values_from_state(saved),
+                compliance=float(saved.get("compliance", 0.0)),
+                stability=float(saved.get("stability", 0.0)),
+                geometry_quality=float(saved.get("geometry_quality", 0.0)),
+                materials=float(saved.get("materials", 0.0)),
+                blender_success=float(saved.get("blender_success", 0.0)),
+                final_export=float(saved.get("final_export", 0.0)),
                 reviewer_notes=str(saved.get("reviewer_notes", "")),
             )
         )
@@ -233,33 +231,32 @@ def report_from_state(
     return report
 
 
-def _result_row(result: BenchmarkResult, *, detailed: bool = False) -> Dict[str, str]:
-    row = {
-        "name": result.test_prompt.name,
-        "difficulty": result.test_prompt.difficulty,
-        **{criterion: f"{value:.2f}" for criterion, value in result.scores.as_dict().items()},
-    }
-    if detailed:
-        row.update(
-            {
-                "prompt": result.test_prompt.prompt,
-                "target_shape": result.test_prompt.target_shape,
-                "average_score": f"{result.average_score():.2f}/10",
-                "reviewer_notes": result.reviewer_notes,
-            }
-        )
-    else:
-        row["average"] = f"{result.average_score():.2f}"
-    return row
-
-
 def rows_for_report(report: BenchmarkReport) -> List[Dict[str, str]]:
-    return [_result_row(result) for result in report.results]
-
+    rows = []
+    for result in report.results:
+        row = {
+            "name": result.test_prompt.name,
+            "difficulty": result.test_prompt.difficulty,
+            "average": f"{result.average_score():.2f}",
+        }
+        row.update({criterion: f"{value:.2f}" for criterion, value in result.scores.as_dict().items()})
+        rows.append(row)
+    return rows
 
 def detailed_rows_for_report(report: BenchmarkReport) -> List[Dict[str, str]]:
-    return [_result_row(result, detailed=True) for result in report.results]
-
+    rows = []
+    for result in report.results:
+        row = {
+            "name": result.test_prompt.name,
+            "difficulty": result.test_prompt.difficulty,
+            "prompt": result.test_prompt.prompt,
+            "target_shape": result.test_prompt.target_shape,
+            "average_score": f"{result.average_score():.2f}/10",
+            "reviewer_notes": result.reviewer_notes,
+        }
+        row.update({criterion: f"{value:.2f}" for criterion, value in result.scores.as_dict().items()})
+        rows.append(row)
+    return rows
 
 def build_report_lines(report: BenchmarkReport) -> List[str]:
     lines = ["3D Prompt Benchmark Report", "=" * 26]
@@ -309,12 +306,12 @@ def save_persisted_benchmark_data(
 
 def load_persisted_benchmark_data(*, store_path: Path = DEFAULT_STORE_PATH) -> Dict[str, object]:
     if not store_path.exists():
-        return {"prompts": default_prompt_records(), "score_state": {}}
+        return {"prompts": default_prompt_records(), "score_state": create_score_state()}
 
     payload = json.loads(store_path.read_text(encoding="utf-8"))
     return {
         "prompts": payload.get("prompts", default_prompt_records()),
-        "score_state": payload.get("score_state", {}),
+        "score_state": payload.get("score_state", create_score_state()),
     }
 
 
@@ -612,14 +609,14 @@ def build_desktop_benchmark_hta(
       difficultyChart(prompts, scoreState);
     }}
 
-    function tryLoadFromDisk() {{
+   function tryLoadFromDisk() {{
       try {{
-        var shell = new ActiveXObject("WScript.Shell");
-        var basePath = shell.CurrentDirectory;
-        var fullPath = basePath + "\\\\" + DATA_FILE_NAME;
+        var htaPath = decodeURIComponent(document.location.pathname).split("/").join("\\\\");
+        var folderPath = htaPath.substring(0, htaPath.lastIndexOf("\\\\") + 1);
+        var fullPath = folderPath + DATA_FILE_NAME;
+
         var fso = new ActiveXObject("Scripting.FileSystemObject");
         if (!fso.FileExists(fullPath)) {{
-          render(initialPayload, "embedded initial data");
           return;
         }}
 
@@ -627,14 +624,15 @@ def build_desktop_benchmark_hta(
         var raw = file.ReadAll();
         file.Close();
 
-        if (raw === lastRawPayload) {{
+        if (raw === lastRawPayload || raw.length < 10) {{
           return;
         }}
 
         lastRawPayload = raw;
-        render(JSON.parse(raw), DATA_FILE_NAME);
+        var parsed = JSON.parse(raw);
+        render(parsed, "local JSON file");
       }} catch (error) {{
-        render(initialPayload, "embedded initial data");
+        // error handling
       }}
     }}
 
@@ -674,16 +672,6 @@ def write_desktop_benchmark_files(
     return {"store_path": store_path, "hta_path": hta_path}
 
 
-def _launch_viewer(path: Path, *, silent: bool = False) -> None:
-    try:
-        os.startfile(str(path))
-    except OSError as error:
-        if silent:
-            return
-        print(f"Desktop viewer was written but could not be opened automatically: {error}")
-        print(f"Open this file manually: {path}")
-
-
 def launch_desktop_benchmark(
     *,
     prompts: List[Dict[str, str]] | None = None,
@@ -697,7 +685,11 @@ def launch_desktop_benchmark(
         store_path=store_path,
         hta_path=hta_path,
     )
-    _launch_viewer(paths["hta_path"])
+    try:
+        os.startfile(str(paths["hta_path"]))
+    except OSError as error:
+        print(f"Desktop viewer was written but could not be opened automatically: {error}")
+        print(f"Open this file manually: {paths['hta_path']}")
     return paths
 
 
@@ -709,14 +701,19 @@ def update_desktop_benchmark(
     hta_path: Path = DEFAULT_HTA_PATH,
     launch_if_missing: bool = False,
 ) -> Dict[str, Path]:
+    current_prompts = prompts or default_prompt_records()
+    current_state = create_score_state(report)
     paths = write_desktop_benchmark_files(
-        prompts=prompts,
-        score_state=create_score_state(report),
+        prompts=current_prompts,
+        score_state=current_state,
         store_path=store_path,
         hta_path=hta_path,
     )
     if launch_if_missing and not hta_path.exists():
-        _launch_viewer(paths["hta_path"], silent=True)
+        try:
+            os.startfile(str(paths["hta_path"]))
+        except OSError:
+            pass
     return paths
 
 
