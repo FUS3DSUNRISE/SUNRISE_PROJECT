@@ -741,19 +741,9 @@ def build_sample_report() -> BenchmarkReport:
         build_result(prompts["minimalist_statue"], compliance=0, stability=0, geometry_quality=0, materials=0, blender_success=0, final_export=0, reviewer_notes="Error: unexpected prompt status."),
         build_result(prompts["impossible_shape"], compliance=0, stability=0, geometry_quality=0, materials=0, blender_success=0, final_export=0, reviewer_notes="Error: unexpected prompt status."),
     ]
-    for name, compliance, stability, geometry_quality, materials, blender_success, final_export, reviewer_notes in sample_rows:
-        report.add_result(
-            build_result(
-                prompts[name],
-                compliance=compliance,
-                stability=stability,
-                geometry_quality=geometry_quality,
-                materials=materials,
-                blender_success=blender_success,
-                final_export=final_export,
-                reviewer_notes=reviewer_notes,
-            )
-        )
+    for result in sample_results:
+        report.add_result(result)
+
     return report
 
 
