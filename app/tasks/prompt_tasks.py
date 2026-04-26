@@ -349,6 +349,7 @@ def _prepare_generated_code(code: str, output_path: str) -> str:
 
 
 def _build_generation_prompt(prompt: PromptRequest, parameters: dict) -> str:
+    parameters = parameters or {}
     category = parameters.get("category") or getattr(prompt, "category", "Simple Objects")
     final_user_prompt = PromptService.create_final_prompt(
         user_query=prompt.prompt_text,
@@ -356,11 +357,17 @@ def _build_generation_prompt(prompt: PromptRequest, parameters: dict) -> str:
         parameters=parameters,
     )
 
-    if not parameters:
+    strict_parameters = {
+        key: parameters[key]
+        for key in ("size", "geometry", "material")
+        if key in parameters
+    }
+
+    if not strict_parameters:
         return final_user_prompt
 
     try:
-        validated_params = Parameters(**parameters)
+        validated_params = Parameters(**strict_parameters)
     except Exception as exc:
         logger.warning("Parameter validation failed in task for prompt_id=%s: %s", prompt.id, exc)
         return final_user_prompt

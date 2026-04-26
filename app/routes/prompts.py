@@ -4,6 +4,7 @@ from app.models.prompt import PromptRequest, PromptStatus
 from app.models.user import User
 from app.services.prompt_service import Parameters
 from app.services.ambiguity_detector import AmbiguityDetector
+from app.services.clarification_rules import ClarificationRules, build_fallback_followup_message
 from app.services.prompt_service import PromptService
 from langchain_openai import ChatOpenAI
 import os
@@ -27,23 +28,24 @@ def create_prompt():
         }), 401
 
 
-    data = request.get_json()
-    category = data.get("category", "Simple Objects")
-    prompt_text = data.get("prompt")
-    print(f"DEBUG: Data received from frontend: {data}")
-    print(f"DEBUG: Category extracted: {category}")
-
-    try:
-        params_obj = Parameters(**data.get("parameters")) if "parameters" in data else None
-        validated_params = params_obj.dict() if params_obj else None
-    except Exception as e:
-        return jsonify({"error": str(e)}), 400
-
+    data = request.get_json(silent=True)
     if not data or "prompt" not in data:
         return jsonify({
             "status": "error",
             "message": "Missing prompt"
         }), 400
+
+    category = data.get("category", "Simple Objects")
+    prompt_text = data.get("prompt", "").strip()
+    print(f"DEBUG: Data received from frontend: {data}")
+    print(f"DEBUG: Category extracted: {category}")
+
+    try:
+        raw_parameters = data.get("parameters") or {}
+        params_obj = Parameters(**raw_parameters) if raw_parameters else None
+        validated_params = params_obj.dict() if params_obj else None
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
 
 
     user = User.query.get(user_id)
@@ -62,39 +64,43 @@ def create_prompt():
     )
     classification = PromptService.classify_intent(prompt_text, llm_for_classify)
 
-    # BLOCK
-    if classification["action"] == "block":
-        return jsonify({"status": "error", "message": classification["reason"]}), 400
-
-    # CLARIFY 
-    if not is_clear or classification["action"] == "clarify":
-        final_reason = classification.get("reason") or reason
-        prompt = PromptRequest(
-            parameters=validated_params,
-            prompt_text=prompt_text,
-            category="Unknown",
-            status=PromptStatus.AWAITING_CLARIFICATION, 
-            error_message=final_reason,
-            user_id=user.id
-        )
-        db.session.add(prompt)
-        db.session.commit()
-
-        return jsonify({
-            "id": prompt.id,
-            "status": "clarify",
-            "message": final_reason
-        }), 200 
+    if classification.get("action") == "block":
+        return jsonify({"status": "error", "message": classification.get("reason")}), 400
 
     # PROCEED
     detected_category = classification.get("family") or category
+    ambiguity = ClarificationRules.analyze(
+        prompt_text=prompt_text,
+        selected_category=category,
+        classification=classification,
+        is_clear=is_clear,
+        detector_reason=reason,
+    )
+    fallback_followup_message = build_fallback_followup_message(
+        prompt_text=prompt_text,
+        category=detected_category,
+        ambiguity=ambiguity,
+    )
+    followup_message = PromptService.generate_followup_message(
+        prompt_text=prompt_text,
+        category=detected_category,
+        ambiguity=ambiguity,
+        llm_client=llm_for_classify,
+        fallback_message=fallback_followup_message,
+    )
+    if followup_message:
+        ambiguity["user_followup_message"] = followup_message
 
+    generation_parameters = dict(validated_params or {})
+    generation_parameters["category"] = detected_category
+    if ambiguity["detected"]:
+        generation_parameters["_ambiguity"] = ambiguity
 
 
     prompt = PromptRequest(
-        parameters=validated_params,
-        prompt_text=data.get("prompt"),
-        category=category,
+        parameters=generation_parameters,
+        prompt_text=prompt_text,
+        category=detected_category,
         status=PromptStatus.QUEUED,
         user_id=user.id
     )
@@ -106,13 +112,14 @@ def create_prompt():
 
     # needs to stay here otherwise error
     from app.tasks.prompt_tasks import process_prompt_task
-    process_prompt_task.delay(prompt_id=prompt.id, parameters=data.get("parameters", {}))
+    process_prompt_task.delay(prompt_id=prompt.id, parameters=generation_parameters)
 
     return jsonify({
         "id": prompt.id,
         "prompt": prompt.prompt_text,
         "category": prompt.category,
         "status": prompt.status.value,
+        "ambiguity": ambiguity,
         "user_id": prompt.user_id
     }), 201
 

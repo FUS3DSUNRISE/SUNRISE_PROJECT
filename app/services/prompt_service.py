@@ -93,6 +93,28 @@ def build_llm_prompt(prompt_text: str, params: Parameters) -> str:
 
 class PromptService:
     @staticmethod
+    def _build_ambiguity_guidance(parameters):
+        ambiguity = (parameters or {}).get("_ambiguity")
+        if not ambiguity or not ambiguity.get("detected"):
+            return ""
+
+        guidance_lines = []
+        for case in ambiguity.get("cases", []):
+            default_resolution = case.get("default_resolution")
+            if default_resolution:
+                guidance_lines.append(f"- {case.get('name')}: {default_resolution}")
+
+        if not guidance_lines:
+            return ""
+
+        return (
+            "Ambiguity handling: do not ask the user for clarification during this generation. "
+            "Generate a first reasonable version by resolving ambiguities in this priority order:\n"
+            + "\n".join(guidance_lines)
+            + " "
+        )
+
+    @staticmethod
     def classify_intent(prompt_text, llm_client):
         families_list = list(CATEGORY_HINTS.keys())
 
@@ -123,6 +145,50 @@ class PromptService:
             return {"action": "proceed", "family": "Simple Objects", "reason": None}
 
     @staticmethod
+    def generate_followup_message(prompt_text, category, ambiguity, llm_client, fallback_message):
+        if not ambiguity or not ambiguity.get("detected"):
+            return None
+
+        primary_case = ambiguity.get("primary_case")
+        questions = [
+            case.get("clarification_question")
+            for case in ambiguity.get("cases", [])
+            if case.get("clarification_question")
+        ]
+
+        system_prompt = (
+            "You are generating a short follow-up message for a 3D model generation app.\n"
+            "The generation has already started using sensible defaults.\n"
+            "Write at most 2 short sentences.\n"
+            "First, say what was generated as a first version.\n"
+            "Second, ask one concise question or give one concise suggestion to improve the next generation and clarify ambiguity.\n"
+            "Do not use markdown.\n"
+            "Do not apologize.\n"
+            "Do not mention backend, ambiguity, classification, or internal rules."
+        )
+
+        human_prompt = (
+            f"User prompt: {prompt_text}\n"
+            f"Detected category: {category}\n"
+            f"Main clarification need: {primary_case}\n"
+            f"Possible clarification questions: {questions[:3]}\n"
+            "Return only the final user-facing message."
+        )
+
+        try:
+            response = llm_client.invoke([
+                ("system", system_prompt),
+                ("human", human_prompt),
+            ])
+            message = response.content.strip().replace("\n", " ")
+            if message:
+                return message
+        except Exception:
+            pass
+
+        return fallback_message
+
+    @staticmethod
     def generate_final_prompt(user_prompt, category, parameters):
 
         final_prompt = f"High-quality 3D model of a {category}: {user_prompt}. "
@@ -130,6 +196,8 @@ class PromptService:
         category_hint = CATEGORY_HINTS.get(category)
         if category_hint:
             final_prompt += f"Category guidance: {category_hint} "
+
+        final_prompt += PromptService._build_ambiguity_guidance(parameters)
         
         # geometry details
         geom = parameters.get('geometry', {})

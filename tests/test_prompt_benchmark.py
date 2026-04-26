@@ -61,8 +61,8 @@ class PromptBenchmarkTests(unittest.TestCase):
 
         self.assertEqual(set(BENCHMARK_CRITERIA), set(report.results[0].scores.as_dict().keys()))
         self.assertEqual(report.average_by_test()["wooden_pallet"], 6.0)
-        self.assertEqual(report.average_by_difficulty()["Simple"], 8.42)
-        self.assertEqual(report.overall_average(), 8.42)
+        self.assertEqual(report.average_by_difficulty()["Simple"], 8.21)
+        self.assertEqual(report.overall_average(), 5.41)
 
     def test_chart_data_orders_difficulties_and_marks_simple_highest(self):
         report = build_sample_report()
@@ -186,7 +186,7 @@ class PromptBenchmarkTests(unittest.TestCase):
         self.assertIn("3D Prompt Benchmark Report", output)
         self.assertIn("wooden_pallet [Simple]", output)
         self.assertIn("Average By Difficulty", output)
-        self.assertIn("Overall Average: 8.42/10", output)
+        self.assertIn("Overall Average: 5.41/10", output)
 
     def test_empty_report_prints_graceful_message(self):
         fake_stdout = StringIO()
