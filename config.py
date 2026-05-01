@@ -20,3 +20,5 @@ class Config:
 
     SESSION_COOKIE_SAMESITE = "Lax"
     SESSION_COOKIE_SECURE = False
+
+    POWERBI_EXPORT_TOKEN = "dev-powerbi-token-123"
