@@ -26,10 +26,7 @@ def create_prompt():
 
 
     data = request.get_json()
-    category = data.get("category", "Simple Objects")
     prompt_text = data.get("prompt")
-    print(f"DEBUG: Data received from frontend: {data}")
-    print(f"DEBUG: Category extracted: {category}")
 
     try:
         params_obj = Parameters(**data.get("parameters")) if "parameters" in data else None
@@ -55,11 +52,8 @@ def create_prompt():
     is_clear, reason = AmbiguityDetector.analyze_prompt(prompt_text)
     if not is_clear:
         prompt = PromptRequest(
-            parameters=validated_params,
-            prompt_text=prompt_text,
-            category=category,
-            status=PromptStatus.AMBIGUOUS, 
-            error_message=reason,
+            prompt_text=data["prompt"],
+            status=PromptStatus.QUEUED,
             user_id=user.id
         )
         db.session.add(prompt)
@@ -68,17 +62,14 @@ def create_prompt():
         return jsonify({
             "id": prompt.id,
             "prompt": prompt.prompt_text,
-            "status": "ambiguous",
-            "message": "The request needs clarification",
             "reason": reason
         }), 400
 
 
 
     prompt = PromptRequest(
+        prompt_text=prompt_text,
         parameters=validated_params,
-        prompt_text=data.get("prompt"),
-        category=category,
         status=PromptStatus.QUEUED,
         user_id=user.id
     )
@@ -95,7 +86,6 @@ def create_prompt():
     return jsonify({
         "id": prompt.id,
         "prompt": prompt.prompt_text,
-        "category": prompt.category,
         "status": prompt.status.value,
         "user_id": prompt.user_id
     }), 201
@@ -147,7 +137,6 @@ def get_prompt(id):
     return jsonify({
         "id": prompt.id,
         "prompt": prompt.prompt_text,
-        "category": prompt.category,
         "status": prompt.status.value,
         "result_path": prompt.result_path,
         "error_message": prompt.error_message,
@@ -180,7 +169,6 @@ def get_my_prompts():
         prompts.append({
             "id": prompt.id,
             "prompt": prompt.prompt_text,
-            "category": prompt.category,
             "status": prompt.status.value,
             "result_path": prompt.result_path,
             "error_message": prompt.error_message
@@ -295,7 +283,6 @@ def modify_prompt(id):
     new_prompt = PromptRequest(
         prompt_text=original_prompt.prompt_text,
         parameters=validated_params,
-        category=original_prompt.category,
         status=PromptStatus.QUEUED,
         user_id=user_id,
         parent_prompt_id=original_prompt.id,

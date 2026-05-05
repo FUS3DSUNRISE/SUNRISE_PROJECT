@@ -8,7 +8,7 @@ import GenerateButton from "@/components/GenerateButton";
 import AuthModal from "@/components/AuthModal";
 import PreviewCanvas from "@/components/PreviewCanvas";
 import logo from "../public/logo.png";
-import { getDownloadUrl, getPreviewBlobUrl } from "@/services/api";
+import { getDownloadUrl, getPreviewBlobUrl, modifyModel } from "@/services/api";
 import ParameterPanel from "@/components/ParameterPanel";
 import { useAuthStore } from "@/state/authStore";
 
@@ -93,6 +93,33 @@ export default function Home() {
             metallic: parameters.material.metallic,
         },
     });
+
+    const handleModify = async () => {
+        if (!result?.id || !modifyCommand.trim()) return;
+
+        try {
+            const store = useGenerationStore.getState();
+            store.setStatus("submitted");
+            setErrorMessage(null);
+
+            const payload = {
+                command: modifyCommand,
+                parameters: getFormattedParameters(),
+            };
+
+            const newResult = await modifyModel(result.id, payload, () => {
+                store.setStatus("processing");
+            });
+
+            store.setResult(newResult);
+            store.setStatus("success");
+            setModifyCommand("");
+        } catch (error: any) {
+            console.error("Modification failed:", error);
+            useGenerationStore.getState().setStatus("error");
+            setErrorMessage(error.message || "Modification failed. Please try again.");
+        }
+    };
 
     return (
         <main className="min-h-screen overflow-x-hidden bg-[#050608] text-white">
@@ -345,43 +372,6 @@ export default function Home() {
                                                 </div>
                                             </div>
 
-                                            {isRefineMode && (
-                                                <div className="rounded-xl border border-[#4f5dff] bg-[#0b1020]/50 p-5">
-                                                    <p className="mb-3 text-sm font-semibold uppercase text-[#4f5dff]">
-                                                        Iterative refinement
-                                                    </p>
-                                                    <div className="flex flex-col gap-3 sm:flex-row">
-                                                        <input
-                                                            type="text"
-                                                            value={refinePrompt}
-                                                            onChange={(e) => setRefinePrompt(e.target.value)}
-                                                            placeholder="e.g., Add more realistic textures..."
-                                                            className="min-w-0 flex-1 rounded-lg border border-white/10 bg-[#0f111a] px-4 py-3 text-sm text-white outline-none focus:border-[#4f5dff]"
-                                                        />
-                                                        <button
-                                                            onClick={() => {
-                                                                const payload = {
-                                                                    action: "refine",
-                                                                    prompt: refinePrompt,
-                                                                    parameters: getFormattedParameters(),
-                                                                    target_model_id: result?.id,
-                                                                };
-                                                                console.log(
-                                                                    "Mock API Payload (Refine):",
-                                                                    JSON.stringify(payload, null, 2)
-                                                                );
-                                                                alert("Refinement prompt saved. Parameters formatted! Check console!");
-                                                                setRefinePrompt("");
-                                                            }}
-                                                            disabled={!refinePrompt.trim()}
-                                                            className="shrink-0 rounded-lg bg-[#4f5dff] px-6 py-3 text-sm font-bold text-white transition hover:bg-[#5d69ff] disabled:opacity-50"
-                                                        >
-                                                            Refine
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            )}
-
                                             <div className="rounded-xl border border-[#ff8a2c] bg-[#0b1020]/50 p-5">
                                                 <p className="mb-3 text-sm font-semibold uppercase text-[#ff8a2c]">
                                                     Modify this model
@@ -392,37 +382,15 @@ export default function Home() {
                                                         value={modifyCommand}
                                                         onChange={(e) => setModifyCommand(e.target.value)}
                                                         placeholder="e.g., Make it taller..."
+                                                        disabled={status === "submitted" || status === "processing"}
                                                         className="min-w-0 flex-1 rounded-lg border border-white/10 bg-[#0f111a] px-4 py-3 text-sm text-white outline-none focus:border-[#ff8a2c]"
                                                     />
                                                     <button
-                                                        onClick={() => {
-                                                            const formattedParameters = {
-                                                                size: parameters.size,
-                                                                geometry: parameters.geometry,
-                                                                material: {
-                                                                    material_type: parameters.material.type.charAt(0).toUpperCase() + parameters.material.type.slice(1),
-                                                                    roughness: parameters.material.roughness,
-                                                                    metallic: parameters.material.metallic
-                                                                }
-                                                            };
-
-                                                            const payload = {
-                                                                action: "modify",
-                                                                command: modifyCommand,
-                                                                parameters: getFormattedParameters(),
-                                                                target_model_id: result?.id,
-                                                            };
-
-                                                            console.log(
-                                                                "Mock API Payload (Modify):",
-                                                                JSON.stringify(payload, null, 2)
-                                                            );
-                                                            alert("Command saved. Parameters formatted! Check console!");
-                                                        }}
-                                                        disabled={!modifyCommand.trim()}
+                                                        onClick={handleModify}
+                                                        disabled={!modifyCommand.trim() || status === "submitted" || status === "processing"}
                                                         className="shrink-0 rounded-lg bg-[#ff8a2c] px-6 py-3 text-sm font-bold text-black transition hover:bg-[#ff9b4d] disabled:opacity-50"
                                                     >
-                                                        Modify
+                                                        {status === "submitted" || status === "processing" ? "Modifying..." : "Modify"}
                                                     </button>
                                                 </div>
                                             </div>
