@@ -1,13 +1,45 @@
 const BASE_URL = "http://localhost:5000";
 
-export async function createPrompt(prompt: string, category: string, parameters: any) {
+type FormattedParameters = {
+    size: {
+        width: number;
+        height: number;
+        depth: number;
+    };
+    geometry: {
+        complexity: number;
+        smoothness: number;
+    };
+    material: {
+        material_type: string;
+        roughness: number;
+        metallic: number;
+    };
+};
+
+type GeneratePayload = {
+    prompt: string;
+    parameters: FormattedParameters;
+};
+
+type PromptResponse = {
+    id: number;
+    prompt: string;
+    status: string;
+    result_path: string | null;
+    error_message: string | null;
+    user_id?: number;
+    category?: string;
+};
+
+export async function createPrompt(payload: GeneratePayload): Promise<PromptResponse> {
     const res = await fetch(`${BASE_URL}/prompts`, {
         method: "POST",
         credentials: "include",
         headers: {
             "Content-Type": "application/json",
         },
-        body: JSON.stringify({ prompt: prompt, category: category, parameters: parameters }),
+        body: JSON.stringify(payload),
     });
 
     const data = await res.json();
@@ -16,10 +48,18 @@ export async function createPrompt(prompt: string, category: string, parameters:
         throw new Error(data.error || data.message || "Failed to create prompt");
     }
 
-    return data;
+    return {
+        id: data.id,
+        prompt: data.prompt,
+        status: data.status,
+        result_path: data.result_path ?? null,
+        error_message: data.error_message ?? null,
+        user_id: data.user_id,
+        category: data.category,
+    };
 }
 
-export async function getPrompt(id: number) {
+export async function getPrompt(id: number): Promise<PromptResponse> {
     const res = await fetch(`${BASE_URL}/prompts/${id}`, {
         credentials: "include",
     });
@@ -28,13 +68,23 @@ export async function getPrompt(id: number) {
         throw new Error("Failed to fetch prompt");
     }
 
-    return res.json();
+    const data = await res.json();
+
+    return {
+        id: data.id,
+        prompt: data.prompt,
+        status: data.status,
+        result_path: data.result_path ?? null,
+        error_message: data.error_message ?? null,
+        user_id: data.user_id,
+        category: data.category,
+    };
 }
 
 export async function pollPrompt(
     id: number,
     onProcessing: () => void
-): Promise<any> {
+): Promise<PromptResponse> {
     let status = "queued";
 
     while (status === "queued" || status === "processing") {
@@ -59,15 +109,15 @@ export async function pollPrompt(
 
         await new Promise((resolve) => setTimeout(resolve, 2000));
     }
+
+    throw new Error("Unexpected prompt status.");
 }
 
 export async function generateModel(
-    prompt: string,
-    category: string,
-    parameters: any, 
+    payload: GeneratePayload,
     onProcessing: () => void = () => { }
-) {
-    const created = await createPrompt(prompt, category, parameters);
+): Promise<PromptResponse> {
+    const created = await createPrompt(payload);
     return await pollPrompt(created.id, onProcessing);
 }
 
@@ -79,7 +129,7 @@ export function getPreviewUrl(id: number) {
     return `${BASE_URL}/prompts/${id}/file`;
 }
 
-export async function getPreviewBlobUrl(id: number) {
+export async function getPreviewBlobUrl(id: number): Promise<string> {
     const res = await fetch(`${BASE_URL}/prompts/${id}/file`, {
         credentials: "include",
     });
@@ -102,7 +152,7 @@ export async function signupUser(email: string, password: string) {
         body: JSON.stringify({ email, password }),
     });
 
-    const data = await res.json();
+    const data = (await res.json()) as { error?: string };
 
     if (!res.ok) {
         throw new Error(data.error || "Signup failed");
@@ -121,7 +171,7 @@ export async function loginUser(email: string, password: string) {
         body: JSON.stringify({ email, password }),
     });
 
-    const data = await res.json();
+    const data = (await res.json()) as { error?: string };
 
     if (!res.ok) {
         throw new Error(data.error || "Login failed");
@@ -135,7 +185,7 @@ export async function getCurrentUser() {
         credentials: "include",
     });
 
-    const data = await res.json();
+    const data = (await res.json()) as { error?: string };
 
     if (!res.ok) {
         throw new Error(data.error || "Failed to fetch current user");
@@ -150,7 +200,7 @@ export async function logoutUser() {
         credentials: "include",
     });
 
-    const data = await res.json();
+    const data = (await res.json()) as { error?: string };
 
     if (!res.ok) {
         throw new Error(data.error || "Logout failed");
@@ -164,7 +214,7 @@ export async function getMyPrompts() {
         credentials: "include",
     });
 
-    const data = await res.json();
+    const data = (await res.json()) as { error?: string };
 
     if (!res.ok) {
         throw new Error(data.error || "Failed to fetch user prompts");

@@ -60,11 +60,9 @@ export default function Home() {
                     console.error("Preview load failed:", error);
                     if (isMounted) setPreviewBlobUrl(null);
                 }
-            } 
-            else if (status === "success" && result && result.id === 999) {
-                 if (isMounted) setPreviewBlobUrl(result.result_path);
-            }
-            else {
+            } else if (status === "success" && result && result.id === 999) {
+                if (isMounted) setPreviewBlobUrl(result.result_path);
+            } else {
                 setPreviewBlobUrl(null);
             }
         }
@@ -73,7 +71,7 @@ export default function Home() {
 
         return () => {
             isMounted = false;
-            if (objectUrl && objectUrl.startsWith('blob:')) {
+            if (objectUrl && objectUrl.startsWith("blob:")) {
                 URL.revokeObjectURL(objectUrl);
             }
         };
@@ -83,6 +81,18 @@ export default function Home() {
     const userInitial = user?.email?.[0]?.toUpperCase() ?? "U";
 
     const isGenerateDisabled = prompt.length > MAX_PROMPT_LENGTH;
+
+    const getFormattedParameters = () => ({
+        size: parameters.size,
+        geometry: parameters.geometry,
+        material: {
+            material_type:
+                parameters.material.type.charAt(0).toUpperCase() +
+                parameters.material.type.slice(1),
+            roughness: parameters.material.roughness,
+            metallic: parameters.material.metallic,
+        },
+    });
 
     return (
         <main className="min-h-screen overflow-x-hidden bg-[#050608] text-white">
@@ -236,12 +246,12 @@ export default function Home() {
                         </div>
                     </section>
 
-                    <aside className="rounded-[24px] border border-white/10 bg-[#0b1020]/50 p-6 shadow-inner">
+                    <aside className="rounded-[24px] border border-white/10 bg-[#0b1020]/50 p-5 shadow-inner sm:p-6">
                         <div>
                             <p className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[#ff8a2c]">
                                 Synthetic assets, real workflow
                             </p>
-                            <h1 className="text-4xl font-extrabold leading-[1.02] xl:text-5xl">
+                            <h1 className="text-4xl font-extrabold leading-[1.02] sm:text-5xl xl:text-5xl">
                                 The Easiest Way
                                 <br />
                                 to Create 3D Models
@@ -251,28 +261,8 @@ export default function Home() {
                             </p>
                         </div>
 
-                        {/* Generation UI */}
-                        <div className="mt-20 rounded-[26px] border border-white/5 bg-[#0b1020]/70 p-6 shadow-inner">
-                                                 
-                            <div className="mt-10 mb-6">
-                                <label className="block text-xs font-semibold uppercase tracking-wider text-white/40 mb-2 ml-2">
-                                    Object Category
-                                </label>
-
-                                <select 
-                                    value={parameters.category || "Simple Objects"} 
-                                    onChange={(e) => setParameters({ ...parameters, category: e.target.value })}
-                                    className="w-full rounded-[20px] border border-white/10 bg-[#11131f]/80 px-5 py-4 text-white outline-none focus:border-[#ff8a2c] appearance-none cursor-pointer hover:bg-[#161927] transition-colors"
-                                >
-                                    <option value="Simple Objects">Simple Objects</option>
-                                    <option value="Furniture">Furniture</option>
-                                    <option value="Architecture">Architecture</option>
-                                    <option value="Decorative Objects">Decorative Objects</option>
-                                    <option value="Electronics">Electronics</option>
-                                </select>
-                            </div>
-
-                            <div className="mt-2">
+                        <div className="mt-8 rounded-[26px] border border-white/5 bg-[#0b1020]/70 p-5 shadow-inner sm:p-6">
+                            <div>
                                 <label htmlFor="prompt" className="sr-only">
                                     Prompt
                                 </label>
@@ -321,7 +311,7 @@ export default function Home() {
                                                             </span>
                                                         </div>
 
-                                                        <div className="flex gap-3">
+                                                        <div className="flex flex-col gap-3 sm:flex-row">
                                                             <a
                                                                 href={result.id === 999 ? result.result_path : getDownloadUrl(result.id)}
                                                                 download={result.id === 999 ? "demo-model.glb" : undefined}
@@ -355,11 +345,48 @@ export default function Home() {
                                                 </div>
                                             </div>
 
+                                            {isRefineMode && (
+                                                <div className="rounded-xl border border-[#4f5dff] bg-[#0b1020]/50 p-5">
+                                                    <p className="mb-3 text-sm font-semibold uppercase text-[#4f5dff]">
+                                                        Iterative refinement
+                                                    </p>
+                                                    <div className="flex flex-col gap-3 sm:flex-row">
+                                                        <input
+                                                            type="text"
+                                                            value={refinePrompt}
+                                                            onChange={(e) => setRefinePrompt(e.target.value)}
+                                                            placeholder="e.g., Add more realistic textures..."
+                                                            className="min-w-0 flex-1 rounded-lg border border-white/10 bg-[#0f111a] px-4 py-3 text-sm text-white outline-none focus:border-[#4f5dff]"
+                                                        />
+                                                        <button
+                                                            onClick={() => {
+                                                                const payload = {
+                                                                    action: "refine",
+                                                                    prompt: refinePrompt,
+                                                                    parameters: getFormattedParameters(),
+                                                                    target_model_id: result?.id,
+                                                                };
+                                                                console.log(
+                                                                    "Mock API Payload (Refine):",
+                                                                    JSON.stringify(payload, null, 2)
+                                                                );
+                                                                alert("Refinement prompt saved. Parameters formatted! Check console!");
+                                                                setRefinePrompt("");
+                                                            }}
+                                                            disabled={!refinePrompt.trim()}
+                                                            className="shrink-0 rounded-lg bg-[#4f5dff] px-6 py-3 text-sm font-bold text-white transition hover:bg-[#5d69ff] disabled:opacity-50"
+                                                        >
+                                                            Refine
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
+
                                             <div className="rounded-xl border border-[#ff8a2c] bg-[#0b1020]/50 p-5">
                                                 <p className="mb-3 text-sm font-semibold uppercase text-[#ff8a2c]">
                                                     Modify this model
                                                 </p>
-                                                <div className="flex gap-3">
+                                                <div className="flex flex-col gap-3 sm:flex-row">
                                                     <input
                                                         type="text"
                                                         value={modifyCommand}
@@ -382,15 +409,15 @@ export default function Home() {
                                                             const payload = {
                                                                 action: "modify",
                                                                 command: modifyCommand,
-                                                                parameters: formattedParameters, 
+                                                                parameters: getFormattedParameters(),
                                                                 target_model_id: result?.id,
                                                             };
-                                                            
-                                                            console.log("Mock API Payload (Modify):", JSON.stringify(payload, null, 2));
+
+                                                            console.log(
+                                                                "Mock API Payload (Modify):",
+                                                                JSON.stringify(payload, null, 2)
+                                                            );
                                                             alert("Command saved. Parameters formatted! Check console!");
-                                                            
-                                                            // Hint for Day 9:
-                                                            // Here, call the future function api.modifyModel(result.id, modifyCommand, formattedParameters)
                                                         }}
                                                         disabled={!modifyCommand.trim()}
                                                         className="shrink-0 rounded-lg bg-[#ff8a2c] px-6 py-3 text-sm font-bold text-black transition hover:bg-[#ff9b4d] disabled:opacity-50"
@@ -414,7 +441,7 @@ export default function Home() {
                             ) : null}
 
                             <div className="mt-8 border-t border-white/10 pt-6">
-                                <div className="flex justify-center gap-6">
+                                <div className="flex flex-wrap justify-center gap-4 sm:gap-6">
                                     <button
                                         onClick={() => {
                                             const store = useGenerationStore.getState();

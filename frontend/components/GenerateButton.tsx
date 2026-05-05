@@ -14,8 +14,7 @@ const FORBIDDEN_CHARACTERS_REGEX = /[<>[\]{}]/;
 
 export default function GenerateButton({ disabled = false }: GenerateButtonProps) {
     const prompt = useGenerationStore((s) => s.prompt);
-    const parameters = useGenerationStore((s) => s.parameters); 
-    const category = useGenerationStore((s) => s.parameters.category || "Simple Objects");
+    const parameters = useGenerationStore((s) => s.parameters);
     const status = useGenerationStore((s) => s.status);
     const setStatus = useGenerationStore((s) => s.setStatus);
     const setErrorMessage = useGenerationStore((s) => s.setErrorMessage);
@@ -24,6 +23,18 @@ export default function GenerateButton({ disabled = false }: GenerateButtonProps
     const user = useAuthStore((s) => s.user);
 
     const [showSpinner, setShowSpinner] = useState(false);
+
+    const getFormattedParameters = () => ({
+        size: parameters.size,
+        geometry: parameters.geometry,
+        material: {
+            material_type:
+                parameters.material.type.charAt(0).toUpperCase() +
+                parameters.material.type.slice(1),
+            roughness: parameters.material.roughness,
+            metallic: parameters.material.metallic,
+        },
+    });
 
     const handleGenerate = async () => {
         if (!prompt.trim()) {
@@ -43,12 +54,6 @@ export default function GenerateButton({ disabled = false }: GenerateButtonProps
             setErrorMessage("Prompt contains forbidden characters: < > [ ] { }");
             return;
         }
-      
-        if (!category) {
-            setStatus("error");
-            setErrorMessage("Please select an object category.");
-            return;
-        }
 
         if (!user) {
             setStatus("error");
@@ -56,12 +61,10 @@ export default function GenerateButton({ disabled = false }: GenerateButtonProps
             return;
         }
 
-        // 🟢 ДОДАНО: Форматуємо параметри під строгі вимоги бекенду (Pydantic)
         const formattedParameters = {
             size: parameters.size,
             geometry: parameters.geometry,
             material: {
-                // Міняємо "type" на "material_type" і робимо першу літеру великою (plastic -> Plastic)
                 material_type: parameters.material.type.charAt(0).toUpperCase() + parameters.material.type.slice(1),
                 roughness: parameters.material.roughness,
                 metallic: parameters.material.metallic
@@ -73,23 +76,23 @@ export default function GenerateButton({ disabled = false }: GenerateButtonProps
             setShowSpinner(true);
 
             const payload = {
-                action: "generate",
                 prompt,
-                parameters: formattedParameters, 
+                parameters: getFormattedParameters(),
             };
-            console.log("Mock API Payload (Generate):", JSON.stringify(payload, null, 2));
+
+            console.log("API Payload (Generate):", JSON.stringify(payload, null, 2));
 
             setStatus("submitted");
             await new Promise((resolve) => setTimeout(resolve, 500));
 
-            setStatus("processing");
+            const result = await generateModel(payload, () => {
+                setStatus("processing");
+            });
 
-            // STEP 3: call API 
-            const result = await generateModel(prompt, category, formattedParameters);
             setResult(result);
-
             setStatus("success");
-        } catch {
+        } catch (error) {
+            console.error("Generation failed:", error);
             setResult(null);
             setStatus("error");
             setErrorMessage("Something went wrong during generation.");

@@ -3,6 +3,7 @@ from app.extensions import db
 from app.models.prompt import PromptRequest, PromptStatus
 from app.models.user import User
 from app.services.prompt_service import Parameters
+from app.services.ambiguity_detector import AmbiguityDetector
 import os
 
 
@@ -26,6 +27,7 @@ def create_prompt():
 
     data = request.get_json()
     category = data.get("category", "Simple Objects")
+    prompt_text = data.get("prompt")
     print(f"DEBUG: Data received from frontend: {data}")
     print(f"DEBUG: Category extracted: {category}")
 
@@ -48,6 +50,29 @@ def create_prompt():
             "status": "error",
             "message": "User not found"
         }), 404
+
+
+    is_clear, reason = AmbiguityDetector.analyze_prompt(prompt_text)
+    if not is_clear:
+        prompt = PromptRequest(
+            parameters=validated_params,
+            prompt_text=prompt_text,
+            category=category,
+            status=PromptStatus.AMBIGUOUS, 
+            error_message=reason,
+            user_id=user.id
+        )
+        db.session.add(prompt)
+        db.session.commit()
+
+        return jsonify({
+            "id": prompt.id,
+            "prompt": prompt.prompt_text,
+            "status": "ambiguous",
+            "message": "The request needs clarification",
+            "reason": reason
+        }), 400
+
 
 
     prompt = PromptRequest(
