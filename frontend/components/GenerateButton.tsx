@@ -70,6 +70,8 @@ export default function GenerateButton({ disabled = false }: GenerateButtonProps
                 parameters: getFormattedParameters(),
             };
 
+            console.log("API Payload (Generate):", JSON.stringify(payload, null, 2));
+
             setStatus("submitted");
             await new Promise((resolve) => setTimeout(resolve, 500));
 
@@ -79,11 +81,11 @@ export default function GenerateButton({ disabled = false }: GenerateButtonProps
 
             setResult(result);
             setStatus("success");
-        } catch (error: any) {
+        } catch (error) {
             console.error("Generation failed:", error);
             setResult(null);
             setStatus("error");
-            setErrorMessage(error.message || "Something went wrong during generation.");
+            setErrorMessage("Something went wrong during generation.");
         } finally {
             setShowSpinner(false);
         }

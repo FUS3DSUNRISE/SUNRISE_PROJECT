@@ -1,6 +1,6 @@
 const BASE_URL = "http://localhost:5000";
 
-export type FormattedParameters = {
+type FormattedParameters = {
     size: {
         width: number;
         height: number;
@@ -19,11 +19,6 @@ export type FormattedParameters = {
 
 type GeneratePayload = {
     prompt: string;
-    parameters: FormattedParameters;
-};
-
-type ModifyPayload = {
-    command: string;
     parameters: FormattedParameters;
 };
 
@@ -82,6 +77,7 @@ export async function getPrompt(id: number): Promise<PromptResponse> {
         result_path: data.result_path ?? null,
         error_message: data.error_message ?? null,
         user_id: data.user_id,
+        category: data.category,
     };
 }
 
@@ -93,6 +89,7 @@ export async function pollPrompt(
 
     while (status === "queued" || status === "processing") {
         const data = await getPrompt(id);
+
         status = data.status;
 
         if (status === "processing") {
@@ -122,31 +119,6 @@ export async function generateModel(
 ): Promise<PromptResponse> {
     const created = await createPrompt(payload);
     return await pollPrompt(created.id, onProcessing);
-}
-
-// НОВА ФУНКЦІЯ: Інтеграція кнопки Modify
-export async function modifyModel(
-    id: number,
-    payload: ModifyPayload,
-    onProcessing: () => void = () => { }
-): Promise<PromptResponse> {
-    const res = await fetch(`${BASE_URL}/prompts/${id}/modify`, {
-        method: "POST",
-        credentials: "include",
-        headers: {
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-    });
-
-    const data = await res.json();
-
-    if (!res.ok) {
-        throw new Error(data.error || data.message || "Failed to modify model");
-    }
-
-    // Чекаємо завершення генерації нової моделі
-    return await pollPrompt(data.id, onProcessing);
 }
 
 export function getDownloadUrl(id: number) {

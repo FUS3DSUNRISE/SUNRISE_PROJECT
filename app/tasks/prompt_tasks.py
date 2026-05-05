@@ -349,8 +349,10 @@ def _prepare_generated_code(code: str, output_path: str) -> str:
 
 
 def _build_generation_prompt(prompt: PromptRequest, parameters: dict) -> str:
+    category = parameters.get("category") or getattr(prompt, "category", "Simple Objects")
     final_user_prompt = PromptService.create_final_prompt(
         user_query=prompt.prompt_text,
+        category=category,
         parameters=parameters,
     )
 

@@ -1,9 +1,8 @@
-import { parameter } from "three/tsl";
-import { createPrompt, pollPrompt, FormattedParameters } from "./api";
+import { createPrompt, pollPrompt } from "./api";
 
 export async function runGenerationFlow(
     prompt: string,
-    parameters: FormattedParameters, 
+    category: string,
     onSubmitted: () => void,
     onProcessing: () => void,
     onSuccess: (result: any) => void,
@@ -12,10 +11,7 @@ export async function runGenerationFlow(
     try {
         onSubmitted();
 
-        const { id } = await createPrompt({ 
-            prompt: prompt, 
-            parameters: parameters 
-        });
+        const { id } = await createPrompt(prompt, category);
 
         const result = await pollPrompt(id, onProcessing);
 

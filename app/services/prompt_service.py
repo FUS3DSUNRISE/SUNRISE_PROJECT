@@ -2,6 +2,60 @@ import json
 from pydantic import BaseModel, Field
 from typing import Literal
 
+
+CATEGORY_HINTS = {
+    "Simple Objects": (
+        "Focus on a single clear object with stable proportions, clean geometry, "
+        "and no unnecessary extra parts."
+    ),
+    "Furniture": (
+        "Prioritize practical proportions, sturdy support elements, and dimensions "
+        "consistent with real household furniture."
+    ),
+    "Architecture": (
+        "Use architectural scale, structural thickness, and clean orthogonal forms "
+        "unless the prompt explicitly asks for something organic."
+    ),
+    "Decorative Objects": (
+        "Prioritize silhouette, ornamental detail, and presentation-ready proportions "
+        "while keeping the mesh clean and stable."
+    ),
+    "Electronics": (
+        "Use compact manufactured proportions, precise edges, and recognizable product-like forms."
+    ),
+    "Kitchenware": (
+        "Assume household scale and functional everyday proportions for mugs, plates, bowls, "
+        "bottles, utensils, and small appliances."
+    ),
+    "Lighting": (
+        "Preserve a stable base or support, coherent lamp proportions, and functional object structure."
+    ),
+    "Vehicles": (
+        "Use recognizable vehicle proportions, grounded wheel placement when relevant, and a stable body structure."
+    ),
+    "Characters / Creatures": (
+        "Keep anatomy or body-part hierarchy readable with a balanced silhouette and stable pose."
+    ),
+    "Plants": (
+        "Use organic proportions, natural variation, and a stable trunk, stem, or pot structure when relevant."
+    ),
+    "Clothing / Accessories": (
+        "Model the item as a standalone wearable object with clear form, practical proportions, and recognizable use."
+    ),
+    "Tools / Equipment": (
+        "Favor durable manufactured shapes, functional proportions, and clear separation of handle, body, and support parts."
+    ),
+    "Toys / Game Props": (
+        "Use stylized but readable proportions, simplified forms, and game-ready silhouette clarity."
+    ),
+    "Office Items": (
+        "Use desk-scale dimensions and practical everyday forms for stationery, desk accessories, and office hardware."
+    ),
+    "Bathroom Items": (
+        "Use domestic bathroom scale, functional geometry, and clean practical proportions."
+    ),
+}
+
 class SizeParams(BaseModel):
     width: float = Field(..., ge=0.5, le=5)
     height: float = Field(..., ge=0.5, le=5)
@@ -39,9 +93,13 @@ def build_llm_prompt(prompt_text: str, params: Parameters) -> str:
 
 class PromptService:
     @staticmethod
-    def generate_final_prompt(user_prompt, parameters):
+    def generate_final_prompt(user_prompt, category, parameters):
 
-        final_prompt = f"High-quality 3D model of a: {user_prompt}. "
+        final_prompt = f"High-quality 3D model of a {category}: {user_prompt}. "
+
+        category_hint = CATEGORY_HINTS.get(category)
+        if category_hint:
+            final_prompt += f"Category guidance: {category_hint} "
         
         # geometry details
         geom = parameters.get('geometry', {})
@@ -60,9 +118,10 @@ class PromptService:
         return final_prompt
 
     @staticmethod
-    def create_final_prompt(user_query, parameters=None):
+    def create_final_prompt(user_query, category, parameters=None):
         return PromptService.generate_final_prompt(
             user_prompt=user_query,
+            category=category,
             parameters=parameters or {},
         )
 
