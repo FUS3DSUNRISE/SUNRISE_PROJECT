@@ -2,6 +2,7 @@ import os
 from dotenv import load_dotenv
 
 load_dotenv()
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
 class Config:
     DEBUG = True
@@ -22,3 +23,10 @@ class Config:
     SESSION_COOKIE_SECURE = False
 
     POWERBI_EXPORT_TOKEN = "dev-powerbi-token-123"
+
+    LLM_SYSTEM_PROMPT_PATH = os.getenv(
+        "LLM_SYSTEM_PROMPT_PATH",
+        os.path.join(BASE_DIR, "app", "prompts", "system_prompt.txt")
+    )
+
+    LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.2"))
