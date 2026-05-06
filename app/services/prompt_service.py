@@ -7,27 +7,22 @@ class SizeParams(BaseModel):
     height: float = Field(..., ge=0.5, le=5)
     depth: float = Field(..., ge=0.5, le=5)
 
-
 class GeometryParams(BaseModel):
     complexity: int = Field(..., ge=1, le=10)
     smoothness: int = Field(..., ge=1, le=100)
-
 
 class MaterialParams(BaseModel):
     material_type: Literal["Plastic", "Metal", "Wood", "Glass"]
     roughness: float = Field(..., ge=0.0, le=1)
     metallic: float = Field(..., ge=0.0, le=1)
 
-
 class Parameters(BaseModel):
     size: SizeParams
     geometry: GeometryParams
     material: MaterialParams
 
-
 def build_llm_prompt(prompt_text: str, params: Parameters) -> str:
     s, g, m = params.size, params.geometry, params.material
-
 
     return (
         f"Generate a Blender Python script for: {prompt_text}\n\n"
@@ -39,8 +34,33 @@ def build_llm_prompt(prompt_text: str, params: Parameters) -> str:
 
 class PromptService:
     @staticmethod
-    def generate_final_prompt(user_prompt, parameters):
+    def classify_intent(prompt_text, llm_client):
+        system_prompt = (
+            "You are a 3D object classifier. Analyze the user prompt.\n\n"
+            "Return JSON only:\n"
+            "{\n"
+            "  'action': 'proceed' | 'clarify' | 'block',\n"
+            "  'reason': 'Explanation why you need clarification or why it is blocked'\n"
+            "}\n"
+            "Rules:\n"
+            "- Known object: proceed.\n"
+            "- Ambiguous/Unknown: clarify.\n"
+            "- Not an object/Nonsense: block."
+        )
 
+        try:
+            response = llm_client.invoke([
+                ("system", system_prompt),
+                ("human", prompt_text),
+            ])
+
+            clean_content = response.content.replace("```json", "").replace("```", "").strip()
+            return json.loads(clean_content)
+        except Exception:
+            return {"action": "proceed", "reason": None}
+
+    @staticmethod
+    def generate_final_prompt(user_prompt, parameters):
         final_prompt = f"High-quality 3D model of a: {user_prompt}. "
         
         # geometry details
@@ -65,4 +85,3 @@ class PromptService:
             user_prompt=user_query,
             parameters=parameters or {},
         )
-

@@ -5,11 +5,9 @@ import config
 class AmbiguityDetector:
     @staticmethod
     def analyze_prompt(text: str):
-        # Simple length check (rule-based)
         if len(text.strip()) < 5:
             return False, "The request is too short. Please describe the object in more detail."
 
-        # Verification via LLM (AI-based)
         api_key = getattr(config.Config, "LLM_API_KEY", os.getenv("LLM_API_KEY"))
         base_url = "https://api.groq.com/openai/v1"
         
@@ -37,6 +35,8 @@ class AmbiguityDetector:
                 return True, None
             else:
                 return False, decision
+
         except Exception as e:
-            # If the AI fails, we pass the request as "clean" so as not to block the workflow
-            return True, None
+            print(f"Error in AmbiguityDetector: {e}")
+            
+            return False, "Validation service unavailable. Please try again later."

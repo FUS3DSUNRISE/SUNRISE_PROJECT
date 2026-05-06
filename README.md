@@ -216,3 +216,20 @@ npm run dev
   * **Wrong Folder Error:** If a command says "file not found" or similar, make sure you opened a new terminal so it starts in the project's root folder.
   * **Redis/Celery Error:** If Terminal \#2 says "Connection Error" or "Consumer: Cannot connect", your Redis server is not running. Revisit Phase 3, Step 0.
 
+-----
+
+## Benchmarking Methodology
+This module provides a systematic approach to evaluating the quality of generated 3D models. The process is divided into two main stages: defining test cases and scoring the results.
+1. Defining Test Cases (TEST_PROMPTS)The TEST_PROMPTS dictionary is where we register reference tasks. Each task is assigned a difficulty level, allowing us to analyze performance bottlenecks across different categories.
+
+2. Evaluation Criteria (build_result)
+Each generation is scored on a scale of 0 to 10 based on the following technical metrics:
+Compliance        How well the model matches the text prompt (color, object type,etc.).Stability         Absence of "artifacts," floating parts, or disconnected meshes.
+Geometry Quality  Mesh topology quality, edge flow, and correct normals.
+Materials         Accuracy and quality of applied textures and shaders.
+Blender Success   Reliability of the model when imported and processed within Blender.Final Export      Practicality of the final file for use in external engines.
+
+How to Add a New Test:
+1. Add a new TestPrompt object to the appropriate category in TEST_PROMPTS.
+2. Once the model is generated, add a scoring entry in build_sample_report() (or load it via JSON).
+3. Run run_dashboard.py to view the updated charts and the new overall average score
