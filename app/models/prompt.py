@@ -9,6 +9,8 @@ class PromptStatus(enum.Enum):
     COMPLETED = "completed"
     FAILED = "failed"
     AMBIGUOUS = "ambiguous"
+    AWAITING_CLARIFICATION = "awaiting_clarification"
+    INVALID = "invalid"
 
 
 class PromptRequest(db.Model):
@@ -43,11 +45,12 @@ class PromptRequest(db.Model):
     )
 
     parent_prompt = db.relationship(
-        "PromptRequest",
-        remote_side=[id],
-        backref="refined_versions",
-        lazy=True
-    )
+    "PromptRequest",
+    remote_side=lambda: [PromptRequest.id],
+    foreign_keys=lambda: [PromptRequest.parent_prompt_id],
+    backref=db.backref("refined_versions", lazy=True),
+    post_update=True
+)
 
     def __repr__(self):
         return f"<PromptRequest {self.id}>"

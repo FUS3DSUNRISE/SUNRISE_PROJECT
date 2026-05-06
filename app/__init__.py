@@ -7,6 +7,7 @@ from flask_cors import CORS
 
 from app.models.user import User
 from app.models.prompt import PromptRequest
+from app.models.feedback import GenerationFeedback
 
 
 
