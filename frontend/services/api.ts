@@ -124,7 +124,7 @@ export async function generateModel(
     return await pollPrompt(created.id, onProcessing);
 }
 
-// НОВА ФУНКЦІЯ: Інтеграція кнопки Modify
+// Modify button integration
 export async function modifyModel(
     id: number,
     payload: ModifyPayload,
@@ -145,7 +145,7 @@ export async function modifyModel(
         throw new Error(data.error || data.message || "Failed to modify model");
     }
 
-    // Чекаємо завершення генерації нової моделі
+    // We are waiting for the completion of the new model generation
     return await pollPrompt(data.id, onProcessing);
 }
 
