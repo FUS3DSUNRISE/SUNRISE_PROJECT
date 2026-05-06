@@ -111,7 +111,6 @@ pip install -r requirements.txt
 
 :: 4. Create Database and Test User
 python create_db.py
-python create_user.py
 ```
 
 #### 3\. Initialize Frontend

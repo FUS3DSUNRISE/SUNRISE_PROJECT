@@ -61,6 +61,16 @@ export default function GenerateButton({ disabled = false }: GenerateButtonProps
             return;
         }
 
+        const formattedParameters = {
+            size: parameters.size,
+            geometry: parameters.geometry,
+            material: {
+                material_type: parameters.material.type.charAt(0).toUpperCase() + parameters.material.type.slice(1),
+                roughness: parameters.material.roughness,
+                metallic: parameters.material.metallic
+            }
+        };
+
         try {
             setErrorMessage(null);
             setShowSpinner(true);
@@ -69,8 +79,6 @@ export default function GenerateButton({ disabled = false }: GenerateButtonProps
                 prompt,
                 parameters: getFormattedParameters(),
             };
-
-            console.log("API Payload (Generate):", JSON.stringify(payload, null, 2));
 
             setStatus("submitted");
             await new Promise((resolve) => setTimeout(resolve, 500));
@@ -81,11 +89,11 @@ export default function GenerateButton({ disabled = false }: GenerateButtonProps
 
             setResult(result);
             setStatus("success");
-        } catch (error) {
+        } catch (error: any) {
             console.error("Generation failed:", error);
             setResult(null);
             setStatus("error");
-            setErrorMessage("Something went wrong during generation.");
+            setErrorMessage(error.message || "Something went wrong during generation.");
         } finally {
             setShowSpinner(false);
         }

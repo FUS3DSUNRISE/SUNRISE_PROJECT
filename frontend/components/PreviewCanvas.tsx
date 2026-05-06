@@ -32,8 +32,8 @@ export default function PreviewCanvas({ modelPath }: PreviewCanvasProps) {
             <directionalLight position={[10, 10, 10]} intensity={2.2} />
             <directionalLight position={[-8, 6, 4]} intensity={1.2} />
 
-            <Suspense fallback={null}>
-                <Environment preset="city" />
+           <Suspense fallback={null}>
+                {/* <Environment preset="city" /> */}
                 <Model modelPath={modelPath} />
             </Suspense>
 

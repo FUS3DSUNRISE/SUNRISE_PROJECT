@@ -17,13 +17,10 @@ import json
 prompts_bp = Blueprint("prompts", __name__)
 
 
-
-
 @prompts_bp.route("", methods=["POST"])
 def create_prompt():
     user_id = session.get("user_id")
     print("DEBUG session user_id:", user_id)
-
 
     if not user_id:
         return jsonify({
@@ -31,12 +28,8 @@ def create_prompt():
             "message": "Not authenticated"
         }), 401
 
-
     data = request.get_json()
-    category = data.get("category", "Simple Objects")
     prompt_text = data.get("prompt")
-    print(f"DEBUG: Data received from frontend: {data}")
-    print(f"DEBUG: Category extracted: {category}")
 
     try:
         params_obj = Parameters(**data.get("parameters")) if "parameters" in data else None
@@ -50,14 +43,12 @@ def create_prompt():
             "message": "Missing prompt"
         }), 400
 
-
     user = User.query.get(user_id)
     if not user:
         return jsonify({
             "status": "error",
             "message": "User not found"
         }), 404
-
 
     is_clear, reason = AmbiguityDetector.analyze_prompt(prompt_text)
     llm_for_classify = ChatOpenAI(
@@ -77,7 +68,6 @@ def create_prompt():
         prompt = PromptRequest(
             parameters=validated_params,
             prompt_text=prompt_text,
-            category="Unknown",
             status=PromptStatus.AWAITING_CLARIFICATION, 
             error_message=final_reason,
             user_id=user.id
@@ -92,22 +82,15 @@ def create_prompt():
         }), 200 
 
     # PROCEED
-    detected_category = classification.get("family") or category
-
-
-
     prompt = PromptRequest(
+        prompt_text=prompt_text,
         parameters=validated_params,
-        prompt_text=data.get("prompt"),
-        category=category,
         status=PromptStatus.QUEUED,
         user_id=user.id
     )
 
-
     db.session.add(prompt)
     db.session.commit()
-
 
     # needs to stay here otherwise error
     from app.tasks.prompt_tasks import process_prompt_task
@@ -116,7 +99,6 @@ def create_prompt():
     return jsonify({
         "id": prompt.id,
         "prompt": prompt.prompt_text,
-        "category": prompt.category,
         "status": prompt.status.value,
         "user_id": prompt.user_id
     }), 201
@@ -168,7 +150,6 @@ def get_prompt(id):
     return jsonify({
         "id": prompt.id,
         "prompt": prompt.prompt_text,
-        "category": prompt.category,
         "status": prompt.status.value,
         "result_path": prompt.result_path,
         "error_message": prompt.error_message,
@@ -180,33 +161,26 @@ def get_prompt(id):
     }), 200
 
 
-
-
 @prompts_bp.route("/me", methods=["GET"])
 def get_my_prompts():
     user_id = session.get("user_id")
     if not user_id:
         return jsonify({"error": "Not authenticated"}), 401
 
-
     user = User.query.get(user_id)
-
 
     if not user:
         return jsonify({"error": "User not found"}), 404
-
 
     prompts = []
     for prompt in user.prompts:
         prompts.append({
             "id": prompt.id,
             "prompt": prompt.prompt_text,
-            "category": prompt.category,
             "status": prompt.status.value,
             "result_path": prompt.result_path,
             "error_message": prompt.error_message
         })
-
 
     return jsonify({
         "user_id": user.id,
@@ -215,39 +189,30 @@ def get_my_prompts():
     }), 200
 
 
-
-
 @prompts_bp.route("/<int:id>/download", methods=["GET"])
 def download_prompt_file(id):
     prompt = PromptRequest.query.get(id)
 
-
     if not prompt:
         return jsonify({"error": "Prompt not found"}), 404
-
 
     user_id = session.get("user_id")
     if not user_id:
         return jsonify({"error": "Not authenticated"}), 401
 
-
     if prompt.user_id != user_id:
         return jsonify({"error": "Unauthorized access to this asset"}), 403
 
-
     if not prompt.result_path:
         return jsonify({"error": "No generated file for this prompt"}), 404
-
 
     filename = os.path.basename(prompt.result_path)
     models_dir = os.path.join(current_app.root_path, "..", "static", "models")
     models_dir = os.path.abspath(models_dir)
     file_path = os.path.join(models_dir, filename)
 
-
     if not os.path.exists(file_path):
         return jsonify({"error": f"File not found on server: {file_path}"}), 404
-
 
     return send_from_directory(models_dir, filename, as_attachment=True)
 
@@ -256,33 +221,26 @@ def download_prompt_file(id):
 def get_prompt_file(id):
     prompt = PromptRequest.query.get(id)
 
-
     if not prompt:
         return jsonify({"error": "Prompt not found"}), 404
-
 
     user_id = session.get("user_id")
     if not user_id:
         return jsonify({"error": "Not authenticated"}), 401
 
-
     if prompt.user_id != user_id:
         return jsonify({"error": "Unauthorized access to this asset"}), 403
 
-
     if not prompt.result_path:
         return jsonify({"error": "No generated file for this prompt"}), 404
-
 
     filename = os.path.basename(prompt.result_path)
     models_dir = os.path.join(current_app.root_path, "..", "static", "models")
     models_dir = os.path.abspath(models_dir)
     file_path = os.path.join(models_dir, filename)
 
-
     if not os.path.exists(file_path):
         return jsonify({"error": f"File not found on server: {file_path}"}), 404
-
 
     return send_from_directory(models_dir, filename)
 
@@ -316,7 +274,6 @@ def modify_prompt(id):
     new_prompt = PromptRequest(
         prompt_text=original_prompt.prompt_text,
         parameters=validated_params,
-        category=original_prompt.category,
         status=PromptStatus.QUEUED,
         user_id=user_id,
         parent_prompt_id=original_prompt.id,
@@ -471,7 +428,6 @@ def export_feedback():
         "success_rate_value",
         "comment",
         "prompt_text",
-        "category",
         "parameters",
         "result_path",
         "is_modified_version",
@@ -502,7 +458,6 @@ def export_feedback():
             success_label,  # useful for Power BI average = success rate
             feedback.comment,
             prompt.prompt_text,
-            prompt.category,
             json.dumps(feedback.parameters) if feedback.parameters else None,
             feedback.result_path,
             is_modified_version,
