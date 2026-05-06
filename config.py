@@ -30,3 +30,4 @@ class Config:
     )
 
     LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.2"))
+    LLM_PROVIDER = os.getenv("LLM_PROVIDER", "groq")
