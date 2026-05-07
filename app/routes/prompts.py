@@ -299,7 +299,7 @@ def modify_prompt(id):
 
 @prompts_bp.route("/<int:id>/feedback", methods=["POST"])
 def create_feedback(id):
-    user_id = 1 #session.get("user_id")
+    user_id = session.get("user_id")
     if not user_id:
         return jsonify({"error": "Not authenticated"}), 401
 
@@ -309,6 +309,13 @@ def create_feedback(id):
 
     if prompt.user_id != user_id:
         return jsonify({"error": "Unauthorized access to this prompt"}), 403
+
+    existing_feedback = GenerationFeedback.query.filter_by(
+        prompt_id=prompt.id,
+        user_id=user_id
+    ).first()
+    if existing_feedback:
+        return jsonify({"error": "Feedback already submitted for this prompt"}), 409
 
     data = request.get_json() or {}
 
@@ -370,13 +377,15 @@ def feedback_analytics():
             "success_rate": 0,
             "average_accuracy_score": None,
             "average_quality_score": None,
-            "ratings": {}
+            "ratings": {},
+            "comments": []
         }), 200
 
     ratings = {}
     success_count = 0
     accuracy_scores = []
     quality_scores = []
+    comments = []
 
     for feedback in feedbacks:
         rating = feedback.rating.value
@@ -397,12 +406,26 @@ def feedback_analytics():
         if is_success:
             success_count += 1
 
+        if feedback.comment and feedback.comment.strip():
+            comments.append({
+                "id": feedback.id,
+                "prompt_id": feedback.prompt_id,
+                "user_id": feedback.user_id,
+                "rating": rating,
+                "accuracy_score": feedback.accuracy_score,
+                "quality_score": feedback.quality_score,
+                "comment": feedback.comment,
+                "prompt": feedback.prompt.prompt_text if feedback.prompt else None,
+                "created_at": feedback.created_at.isoformat() if feedback.created_at else None
+            })
+
     return jsonify({
         "total_feedback": total_feedback,
         "success_rate": round(success_count / total_feedback * 100, 2),
         "average_accuracy_score": round(sum(accuracy_scores) / len(accuracy_scores), 2) if accuracy_scores else None,
         "average_quality_score": round(sum(quality_scores) / len(quality_scores), 2) if quality_scores else None,
-        "ratings": ratings
+        "ratings": ratings,
+        "comments": comments
     }), 200
 
 @prompts_bp.route("/feedback/export", methods=["GET"])

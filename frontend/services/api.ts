@@ -37,6 +37,47 @@ type PromptResponse = {
     category?: string;
 };
 
+export type FeedbackRating = "positive" | "neutral" | "negative";
+
+type FeedbackPayload = {
+    rating: FeedbackRating;
+    model_score?: number;
+    accuracy_score?: number;
+    quality_score?: number;
+    comment?: string;
+};
+
+type FeedbackResponse = {
+    id: number;
+    prompt_id: number;
+    user_id: number;
+    rating: FeedbackRating;
+    accuracy_score: number | null;
+    quality_score: number | null;
+    comment: string | null;
+};
+
+export type FeedbackAnalytics = {
+    total_feedback: number;
+    success_rate: number;
+    average_accuracy_score: number | null;
+    average_quality_score: number | null;
+    ratings: Partial<Record<FeedbackRating, number>>;
+    comments: FeedbackComment[];
+};
+
+export type FeedbackComment = {
+    id: number;
+    prompt_id: number;
+    user_id: number;
+    rating: FeedbackRating;
+    accuracy_score: number | null;
+    quality_score: number | null;
+    comment: string;
+    prompt: string | null;
+    created_at: string | null;
+};
+
 export async function createPrompt(payload: GeneratePayload): Promise<PromptResponse> {
     const res = await fetch(`${BASE_URL}/prompts`, {
         method: "POST",
@@ -249,4 +290,44 @@ export async function getMyPrompts() {
     }
 
     return data;
+}
+
+export async function submitFeedback(
+    promptId: number,
+    payload: FeedbackPayload
+): Promise<FeedbackResponse> {
+    const res = await fetch(`${BASE_URL}/prompts/${promptId}/feedback`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+    });
+
+    const data = (await res.json()) as { error?: string };
+
+    if (!res.ok) {
+        const error = new Error(data.error || "Failed to submit feedback") as Error & {
+            status?: number;
+        };
+        error.status = res.status;
+        throw error;
+    }
+
+    return data as FeedbackResponse;
+}
+
+export async function getFeedbackAnalytics(): Promise<FeedbackAnalytics> {
+    const res = await fetch(`${BASE_URL}/prompts/feedback/analytics`, {
+        credentials: "include",
+    });
+
+    const data = (await res.json()) as { error?: string };
+
+    if (!res.ok) {
+        throw new Error(data.error || "Failed to fetch feedback analytics");
+    }
+
+    return data as FeedbackAnalytics;
 }
