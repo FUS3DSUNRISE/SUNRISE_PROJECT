@@ -3,7 +3,6 @@ from app.extensions import db
 from app.models.prompt import PromptRequest, PromptStatus
 from app.models.user import User
 from app.services.prompt_service import Parameters
-from app.services.ambiguity_detector import AmbiguityDetector
 from app.services.prompt_service import PromptService
 from langchain_openai import ChatOpenAI
 from app.models.feedback import GenerationFeedback, FeedbackRating
@@ -12,6 +11,7 @@ import csv
 import io
 import os
 import json
+import config
 
 
 prompts_bp = Blueprint("prompts", __name__)
@@ -50,11 +50,10 @@ def create_prompt():
             "message": "User not found"
         }), 404
 
-    is_clear, reason = AmbiguityDetector.analyze_prompt(prompt_text)
     llm_for_classify = ChatOpenAI(
         base_url=current_app.config.get("LLM_BASE_URL", "https://api.groq.com/openai/v1"), 
-        api_key=current_app.config.get("LLM_API_KEY", ""), 
-        model=current_app.config.get("LLM_MODEL", "llama-3.3-70b-versatile")
+        api_key=config.Config.LLM_API_KEY, 
+        model=current_app.config.get("LLM_MODEL", "openai/gpt-oss-120b")
     )
     classification = PromptService.classify_intent(prompt_text, llm_for_classify)
 
@@ -63,7 +62,7 @@ def create_prompt():
         return jsonify({"status": "error", "message": classification["reason"]}), 400
 
     # CLARIFY 
-    if not is_clear or classification["action"] == "clarify":
+    if classification["action"] == "clarify":
         final_reason = classification.get("reason") or reason
         prompt = PromptRequest(
             parameters=validated_params,

@@ -10,7 +10,7 @@ The first line of your response must always be `import bpy`.
 4. Build parts bottom to top
 5. Parent all parts to a root Empty
 
-═══ HELPER FUNCTIONS — ALWAYS DEFINE THESE EXACTLY ═══
+═══ HELPER FUNCTIONS ═══
 
 def make_box(name, w, d, h, x, y, z):
     verts = [(-w/2,-d/2,0),(w/2,-d/2,0),(w/2,d/2,0),(-w/2,d/2,0),
