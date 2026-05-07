@@ -63,6 +63,19 @@ export type FeedbackAnalytics = {
     average_accuracy_score: number | null;
     average_quality_score: number | null;
     ratings: Partial<Record<FeedbackRating, number>>;
+    comments: FeedbackComment[];
+};
+
+export type FeedbackComment = {
+    id: number;
+    prompt_id: number;
+    user_id: number;
+    rating: FeedbackRating;
+    accuracy_score: number | null;
+    quality_score: number | null;
+    comment: string;
+    prompt: string | null;
+    created_at: string | null;
 };
 
 export async function createPrompt(payload: GeneratePayload): Promise<PromptResponse> {

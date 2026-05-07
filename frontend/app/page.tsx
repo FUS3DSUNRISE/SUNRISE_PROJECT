@@ -139,13 +139,6 @@ export default function Home() {
                     />
 
                     <nav className="relative flex items-center gap-6 text-[15px] text-white/90">
-                        <Link
-                            href="/analytics"
-                            className="transition hover:text-white"
-                        >
-                            Analytics
-                        </Link>
-
                         <a
                             href="https://www.scailab.se/"
                             target="_blank"
@@ -467,6 +460,12 @@ export default function Home() {
                                     >
                                         [Reset]
                                     </button>
+                                    <Link
+                                        href="/analytics"
+                                        className="text-xs text-[#ff8a2c]/70 hover:text-[#ff8a2c]"
+                                    >
+                                        [Analytics]
+                                    </Link>
                                 </div>
                             </div>
                         </div>

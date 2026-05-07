@@ -37,14 +37,24 @@ const emptyAnalytics: FeedbackAnalytics = {
   average_accuracy_score: null,
   average_quality_score: null,
   ratings: {},
+  comments: [],
 };
 
 const formatScore = (score: number | null) => (score === null ? "N/A" : `${score.toFixed(2)} / 5`);
+const formatDate = (value: string | null) => {
+  if (!value) return "Unknown date";
+
+  return new Intl.DateTimeFormat("en", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
+};
 
 export default function AnalyticsPage() {
   const [state, setState] = useState<LoadState>("loading");
   const [analytics, setAnalytics] = useState<FeedbackAnalytics>(emptyAnalytics);
   const [error, setError] = useState<string | null>(null);
+  const [showComments, setShowComments] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -201,6 +211,54 @@ export default function AnalyticsPage() {
               <span>Success: {successRate}%</span>
               <span>Needs review: {issueRate}%</span>
             </div>
+          </section>
+
+          <section className="mt-5 rounded-lg border border-white/10 bg-[#0b1020]/70 p-5">
+            <button
+              type="button"
+              onClick={() => setShowComments((current) => !current)}
+              className="flex w-full flex-col gap-3 text-left sm:flex-row sm:items-center sm:justify-between"
+              aria-expanded={showComments}
+            >
+              <div>
+                <h2 className="text-lg font-semibold text-white">User Comments</h2>
+                <p className="mt-1 text-sm text-white/50">
+                  {showComments ? "Hide submitted generation feedback comments." : "Show submitted generation feedback comments."}
+                </p>
+              </div>
+
+              <span className="inline-flex items-center gap-2 text-sm text-white/60">
+                {analytics.comments.length} comments
+                <span className="text-lg leading-none text-[#ff8a2c]">{showComments ? "-" : "+"}</span>
+              </span>
+            </button>
+
+            {showComments && (
+              analytics.comments.length === 0 ? (
+                <div className="mt-5 rounded-lg border border-white/10 bg-white/[0.03] p-5 text-sm text-white/55">
+                  No written comments yet.
+                </div>
+              ) : (
+                <div className="mt-5 space-y-3">
+                  {analytics.comments.map((item) => (
+                    <article key={item.id} className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
+                      <div className="flex flex-wrap items-center gap-3 text-xs text-white/45">
+                        <span className="capitalize text-white/70">{item.rating}</span>
+                        <span>Accuracy: {item.accuracy_score ?? "N/A"}</span>
+                        <span>Quality: {item.quality_score ?? "N/A"}</span>
+                        <span>{formatDate(item.created_at)}</span>
+                      </div>
+                      <p className="mt-3 text-sm leading-6 text-white/85">{item.comment}</p>
+                      {item.prompt && (
+                        <p className="mt-3 truncate text-xs text-white/40">
+                          Prompt #{item.prompt_id}: {item.prompt}
+                        </p>
+                      )}
+                    </article>
+                  ))}
+                </div>
+              )
+            )}
           </section>
         </>
       )}
