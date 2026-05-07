@@ -8,9 +8,12 @@ const ACCEPTED_FILE_TYPES = SUPPORTED_EXTENSIONS.join(",");
 
 type UploadStatus = "idle" | "uploading" | "ready";
 
-type SelectedAsset = {
+export type LocalAsset = {
     name: string;
     type: string;
+    size: number;
+    lastModified: number;
+    file: File;
 };
 
 function getFileExtension(fileName: string) {
@@ -34,10 +37,22 @@ function validateAssetFile(file: File) {
     return `"${file.name}" is not supported. Please choose a 3D asset in ${readableFormats} format.`;
 }
 
-export default function ImportAssetPanel() {
+type ImportAssetPanelProps = {
+    isLocked?: boolean;
+    lockedMessage?: string;
+    onAssetSelected?: (asset: LocalAsset) => void;
+    onUseAsset?: (asset: LocalAsset) => void;
+};
+
+export default function ImportAssetPanel({
+    isLocked = false,
+    lockedMessage = "Log in to import assets.",
+    onAssetSelected,
+    onUseAsset,
+}: ImportAssetPanelProps) {
     const [isExpanded, setIsExpanded] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
-    const [selectedAsset, setSelectedAsset] = useState<SelectedAsset | null>(null);
+    const [selectedAsset, setSelectedAsset] = useState<LocalAsset | null>(null);
     const [uploadStatus, setUploadStatus] = useState<UploadStatus>("idle");
     const [validationMessage, setValidationMessage] = useState<string | null>(null);
 
@@ -52,6 +67,11 @@ export default function ImportAssetPanel() {
     }, [uploadStatus]);
 
     const handleFile = (file: File | undefined) => {
+        if (isLocked) {
+            setValidationMessage(lockedMessage);
+            return;
+        }
+
         if (!file) return;
 
         const error = validateAssetFile(file);
@@ -63,22 +83,36 @@ export default function ImportAssetPanel() {
             return;
         }
 
-        setSelectedAsset({
+        const nextAsset = {
             name: file.name,
             type: getAssetType(file.name),
-        });
+            size: file.size,
+            lastModified: file.lastModified,
+            file,
+        };
+
+        setSelectedAsset(nextAsset);
         setUploadStatus("uploading");
         setValidationMessage(null);
+        onAssetSelected?.(nextAsset);
     };
 
     const handleDrop = (event: DragEvent<HTMLLabelElement>) => {
         event.preventDefault();
         setIsDragging(false);
+
+        if (isLocked) {
+            setValidationMessage(lockedMessage);
+            return;
+        }
+
         handleFile(event.dataTransfer.files[0]);
     };
 
     const statusLabel =
-        uploadStatus === "uploading"
+        isLocked
+            ? "Login required"
+            : uploadStatus === "uploading"
             ? "Uploading..."
             : uploadStatus === "ready"
                 ? "Ready to import"
@@ -122,10 +156,12 @@ export default function ImportAssetPanel() {
                     <label
                         onDragEnter={(event) => {
                             event.preventDefault();
+                            if (isLocked) return;
                             setIsDragging(true);
                         }}
                         onDragOver={(event) => {
                             event.preventDefault();
+                            if (isLocked) return;
                             setIsDragging(true);
                         }}
                         onDragLeave={(event) => {
@@ -133,8 +169,10 @@ export default function ImportAssetPanel() {
                             setIsDragging(false);
                         }}
                         onDrop={handleDrop}
-                        className={`flex min-h-[148px] cursor-pointer flex-col items-center justify-center rounded-[18px] border border-dashed px-5 py-6 text-center transition ${
-                            isDragging
+                        className={`flex min-h-[148px] flex-col items-center justify-center rounded-[18px] border border-dashed px-5 py-6 text-center transition ${
+                            isLocked
+                                ? "cursor-not-allowed border-white/10 bg-white/[0.02] opacity-70"
+                                : isDragging
                                 ? "border-[#ff8a2c] bg-[#ff8a2c]/10"
                                 : "border-white/15 bg-white/[0.03] hover:border-[#ff8a2c]/70 hover:bg-white/[0.05]"
                         }`}
@@ -142,6 +180,7 @@ export default function ImportAssetPanel() {
                         <input
                             type="file"
                             accept={ACCEPTED_FILE_TYPES}
+                            disabled={isLocked}
                             className="sr-only"
                             onChange={(event) => {
                                 handleFile(event.target.files?.[0]);
@@ -153,7 +192,7 @@ export default function ImportAssetPanel() {
                             +
                         </span>
                         <span className="mt-4 text-sm font-medium text-white">
-                            Drop a model here or browse files
+                            {isLocked ? "Log in to import a model" : "Drop a model here or browse files"}
                         </span>
                         <span className="mt-2 text-xs text-white/45">
                             Supported formats: GLB, GLTF, OBJ
@@ -202,6 +241,17 @@ export default function ImportAssetPanel() {
                                     Upload status: {statusLabel}
                                 </div>
                             </div>
+
+                            {uploadStatus === "ready" && (
+                                <button
+                                    type="button"
+                                    onClick={() => onUseAsset?.(selectedAsset)}
+                                    disabled={isLocked}
+                                    className="mt-4 w-full rounded-[14px] bg-[#ff8a2c] px-4 py-3 text-sm font-semibold text-black transition hover:bg-[#ff9b4d] disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    Use this asset
+                                </button>
+                            )}
                         </div>
                     )}
                 </div>

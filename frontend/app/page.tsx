@@ -8,7 +8,7 @@ import GenerateButton from "@/components/GenerateButton";
 import AuthModal from "@/components/AuthModal";
 import PreviewCanvas from "@/components/PreviewCanvas";
 import FeedbackWidget from "@/components/FeedbackWidget";
-import ImportAssetPanel from "@/components/ImportAssetPanel";
+import ImportAssetPanel, { type LocalAsset } from "@/components/ImportAssetPanel";
 import logo from "../public/logo.png";
 import { getDownloadUrl, getPreviewBlobUrl, modifyModel } from "@/services/api";
 import ParameterPanel from "@/components/ParameterPanel";
@@ -48,6 +48,7 @@ export default function Home() {
     const [showExamples, setShowExamples] = useState(false);
     const [showUserMenu, setShowUserMenu] = useState(false);
     const [previewBlobUrl, setPreviewBlobUrl] = useState<string | null>(null);
+    const [localAsset, setLocalAsset] = useState<(LocalAsset & { previewUrl: string }) | null>(null);
 
     useEffect(() => {
         let objectUrl: string | null = null;
@@ -79,7 +80,9 @@ export default function Home() {
         };
     }, [status, result]);
 
-    const previewModelPath = previewBlobUrl ?? selectedModel;
+    const activeLocalAsset = user ? localAsset : null;
+    const previewModelPath = activeLocalAsset?.previewUrl ?? previewBlobUrl ?? selectedModel;
+    const previewModelType = activeLocalAsset?.type;
     const userInitial = user?.email?.[0]?.toUpperCase() ?? "U";
 
     const isGenerateDisabled = prompt.length > MAX_PROMPT_LENGTH;
@@ -127,6 +130,40 @@ export default function Home() {
             );
         }
     };
+
+    const handleLocalAssetSelected = (asset: LocalAsset) => {
+        const previewUrl = URL.createObjectURL(asset.file);
+
+        setLocalAsset((currentAsset) => {
+            if (currentAsset?.previewUrl) {
+                URL.revokeObjectURL(currentAsset.previewUrl);
+            }
+
+            return {
+                ...asset,
+                previewUrl,
+            };
+        });
+    };
+
+    const handleUseAsset = (asset: LocalAsset) => {
+        console.log("Use this asset", {
+            name: asset.name,
+            type: asset.type,
+            size: asset.size,
+            lastModified: asset.lastModified,
+            previewUrl: activeLocalAsset?.previewUrl ?? null,
+            file: asset.file,
+        });
+    };
+
+    useEffect(() => {
+        return () => {
+            if (localAsset?.previewUrl) {
+                URL.revokeObjectURL(localAsset.previewUrl);
+            }
+        };
+    }, [localAsset?.previewUrl]);
 
     return (
         <main className="min-h-screen overflow-x-hidden bg-[#050608] text-white">
@@ -206,6 +243,10 @@ export default function Home() {
 
                                             <button
                                                 onClick={() => {
+                                                    if (localAsset?.previewUrl) {
+                                                        URL.revokeObjectURL(localAsset.previewUrl);
+                                                    }
+                                                    setLocalAsset(null);
                                                     logout();
                                                     setShowUserMenu(false);
                                                 }}
@@ -240,7 +281,7 @@ export default function Home() {
                                 </div>
 
                                 <div className="h-[560px] w-full">
-                                    <PreviewCanvas modelPath={previewModelPath} />
+                                    <PreviewCanvas modelPath={previewModelPath} modelType={previewModelType} />
                                 </div>
 
                                 {status === "success" && result?.result_path && (
@@ -308,7 +349,12 @@ export default function Home() {
                         </div>
 
                         <div className="mt-8 rounded-[26px] border border-white/5 bg-[#0b1020]/70 p-5 shadow-inner sm:p-6">
-                            <ImportAssetPanel />
+                            <ImportAssetPanel
+                                isLocked={!user}
+                                lockedMessage="Please log in before importing a 3D asset."
+                                onAssetSelected={handleLocalAssetSelected}
+                                onUseAsset={handleUseAsset}
+                            />
 
                             <div>
                                 <label htmlFor="prompt" className="sr-only">
