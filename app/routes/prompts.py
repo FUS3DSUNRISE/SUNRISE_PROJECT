@@ -300,7 +300,7 @@ def modify_prompt(id):
 
 @prompts_bp.route("/<int:id>/feedback", methods=["POST"])
 def create_feedback(id):
-    user_id = 1 #session.get("user_id")
+    user_id = session.get("user_id")
     if not user_id:
         return jsonify({"error": "Not authenticated"}), 401
 
@@ -310,6 +310,13 @@ def create_feedback(id):
 
     if prompt.user_id != user_id:
         return jsonify({"error": "Unauthorized access to this prompt"}), 403
+
+    existing_feedback = GenerationFeedback.query.filter_by(
+        prompt_id=prompt.id,
+        user_id=user_id
+    ).first()
+    if existing_feedback:
+        return jsonify({"error": "Feedback already submitted for this prompt"}), 409
 
     data = request.get_json() or {}
 
