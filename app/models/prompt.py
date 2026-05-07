@@ -43,6 +43,18 @@ class PromptRequest(db.Model):
         nullable=True
     )
 
+    imported_asset_id = db.Column(
+        db.Integer,
+        db.ForeignKey("imported_assets.id"),
+        nullable=True
+    )
+
+    imported_asset = db.relationship(
+        "ImportedAsset",
+        backref="prompt_requests",
+        lazy=True
+    )
+
     parent_prompt = db.relationship(
     "PromptRequest",
     remote_side=lambda: [PromptRequest.id],
