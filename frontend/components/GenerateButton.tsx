@@ -61,16 +61,6 @@ export default function GenerateButton({ disabled = false }: GenerateButtonProps
             return;
         }
 
-        const formattedParameters = {
-            size: parameters.size,
-            geometry: parameters.geometry,
-            material: {
-                material_type: parameters.material.type.charAt(0).toUpperCase() + parameters.material.type.slice(1),
-                roughness: parameters.material.roughness,
-                metallic: parameters.material.metallic
-            }
-        };
-
         try {
             setErrorMessage(null);
             setShowSpinner(true);
@@ -89,11 +79,15 @@ export default function GenerateButton({ disabled = false }: GenerateButtonProps
 
             setResult(result);
             setStatus("success");
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error("Generation failed:", error);
             setResult(null);
             setStatus("error");
-            setErrorMessage(error.message || "Something went wrong during generation.");
+            setErrorMessage(
+                error instanceof Error
+                    ? error.message
+                    : "Something went wrong during generation."
+            );
         } finally {
             setShowSpinner(false);
         }

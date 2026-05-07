@@ -1,10 +1,8 @@
 "use client";
 
 
-import { useEffect, useState } from "react";
-
-
 export type ModelParameters = {
+    category?: string;
     size: {
         width: number;
         height: number;

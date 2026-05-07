@@ -27,7 +27,7 @@ type ModifyPayload = {
     parameters: FormattedParameters;
 };
 
-type PromptResponse = {
+export type PromptResponse = {
     id: number;
     prompt: string;
     status: string;
@@ -35,6 +35,18 @@ type PromptResponse = {
     error_message: string | null;
     user_id?: number;
     category?: string;
+};
+
+type AuthUser = {
+    id: number;
+    username: string;
+    email: string;
+};
+
+type AuthResponse = {
+    message?: string;
+    user: AuthUser;
+    error?: string;
 };
 
 export type FeedbackRating = "positive" | "neutral" | "negative";
@@ -211,7 +223,7 @@ export async function getPreviewBlobUrl(id: number): Promise<string> {
     return URL.createObjectURL(blob);
 }
 
-export async function signupUser(email: string, password: string) {
+export async function signupUser(email: string, password: string): Promise<AuthResponse> {
     const res = await fetch(`${BASE_URL}/auth/signup`, {
         method: "POST",
         credentials: "include",
@@ -221,7 +233,7 @@ export async function signupUser(email: string, password: string) {
         body: JSON.stringify({ email, password }),
     });
 
-    const data = (await res.json()) as { error?: string };
+    const data = (await res.json()) as AuthResponse;
 
     if (!res.ok) {
         throw new Error(data.error || "Signup failed");
@@ -230,7 +242,7 @@ export async function signupUser(email: string, password: string) {
     return data;
 }
 
-export async function loginUser(email: string, password: string) {
+export async function loginUser(email: string, password: string): Promise<AuthResponse> {
     const res = await fetch(`${BASE_URL}/auth/login`, {
         method: "POST",
         credentials: "include",
@@ -240,7 +252,7 @@ export async function loginUser(email: string, password: string) {
         body: JSON.stringify({ email, password }),
     });
 
-    const data = (await res.json()) as { error?: string };
+    const data = (await res.json()) as AuthResponse;
 
     if (!res.ok) {
         throw new Error(data.error || "Login failed");
@@ -249,12 +261,12 @@ export async function loginUser(email: string, password: string) {
     return data;
 }
 
-export async function getCurrentUser() {
+export async function getCurrentUser(): Promise<AuthResponse> {
     const res = await fetch(`${BASE_URL}/auth/me`, {
         credentials: "include",
     });
 
-    const data = (await res.json()) as { error?: string };
+    const data = (await res.json()) as AuthResponse;
 
     if (!res.ok) {
         throw new Error(data.error || "Failed to fetch current user");

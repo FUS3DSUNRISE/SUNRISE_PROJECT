@@ -8,6 +8,7 @@ import GenerateButton from "@/components/GenerateButton";
 import AuthModal from "@/components/AuthModal";
 import PreviewCanvas from "@/components/PreviewCanvas";
 import FeedbackWidget from "@/components/FeedbackWidget";
+import ImportAssetPanel from "@/components/ImportAssetPanel";
 import logo from "../public/logo.png";
 import { getDownloadUrl, getPreviewBlobUrl, modifyModel } from "@/services/api";
 import ParameterPanel from "@/components/ParameterPanel";
@@ -307,6 +308,8 @@ export default function Home() {
                         </div>
 
                         <div className="mt-8 rounded-[26px] border border-white/5 bg-[#0b1020]/70 p-5 shadow-inner sm:p-6">
+                            <ImportAssetPanel />
+
                             <div>
                                 <label htmlFor="prompt" className="sr-only">
                                     Prompt
@@ -324,7 +327,7 @@ export default function Home() {
                                     placeholder="Describe the 3D model..."
                                     maxLength={MAX_PROMPT_LENGTH}
                                     disabled={status === "submitted" || status === "processing"}
-                                    className="w-full rounded-[18px] border border-white/10 bg-[#11131f]/80 px-5 py-4 text-white outline-none focus:border-[#ff8a2c]"
+                                    className="mt-6 w-full rounded-[18px] border border-white/10 bg-[#11131f]/80 px-5 py-4 text-white outline-none focus:border-[#ff8a2c]"
                                 />
 
                                 {prompt.length > MAX_PROMPT_LENGTH && (

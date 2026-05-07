@@ -3,7 +3,7 @@
 import { Suspense, useMemo } from "react";
 import { Canvas } from "@react-three/fiber";
 // Add import of the Center component
-import { Environment, OrbitControls, useGLTF, Center } from "@react-three/drei";
+import { OrbitControls, useGLTF, Center } from "@react-three/drei";
 
 type PreviewCanvasProps = {
     modelPath: string;
