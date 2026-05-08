@@ -18,7 +18,6 @@ mock_service.classify_intent.return_value = {
 sys.modules['app.services.prompt_service'] = MagicMock(
     PromptService=MagicMock(return_value=mock_service)
 )
-sys.modules['app.services.ambiguity_detector'] = MagicMock()
 sys.modules['app.tasks.prompt_tasks'] = MagicMock()
 
 from app import create_app, db
@@ -64,11 +63,6 @@ def test_create_prompt_success(client, logged_in_user, mocker):
             "family": "Simple Objects",
             "reason": None
         }
-    )
-
-    mocker.patch(
-        "app.services.ambiguity_detector.AmbiguityDetector.analyze_prompt",
-        return_value=(True, "")
     )
 
     mocker.patch("app.tasks.prompt_tasks.process_prompt_task.delay")

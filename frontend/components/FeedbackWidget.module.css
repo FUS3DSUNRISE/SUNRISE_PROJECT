@@ -1,0 +1,328 @@
+.feedback {
+    position: absolute;
+    right: 16px;
+    bottom: 16px;
+    z-index: 20;
+    width: min(430px, calc(100% - 32px));
+    padding: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 20px;
+    background: rgba(8, 13, 28, 0.18);
+    color: #fff;
+    box-shadow: none;
+    backdrop-filter: blur(10px);
+}
+
+.submitted {
+    opacity: 0.58;
+    pointer-events: none;
+}
+
+.header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.heading {
+    min-width: 0;
+}
+
+.eyebrow {
+    margin: 0;
+    color: rgba(255, 255, 255, 0.95);
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.title {
+    margin: 7px 0 0;
+    color: rgba(255, 255, 255, 0.88);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.35;
+}
+
+.statusText {
+    margin: 4px 0 0;
+    color: rgba(255, 255, 255, 0.62);
+    font-size: 10px;
+    font-weight: 700;
+}
+
+.badge {
+    flex: 0 0 auto;
+    border-radius: 999px;
+    border: 1px solid rgba(74, 222, 128, 0.28);
+    background: rgba(34, 197, 94, 0.12);
+    padding: 6px 10px;
+    color: #86efac;
+    font-size: 11px;
+    font-weight: 800;
+}
+
+.ratingGroup {
+    display: grid;
+    grid-template-columns: minmax(116px, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    margin-top: 14px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.metricHeader {
+    min-width: 0;
+}
+
+.metricLabel {
+    margin: 0;
+    color: rgba(255, 255, 255, 0.95);
+    font-size: 13px;
+    font-weight: 900;
+    line-height: 1.2;
+}
+
+.metricDescription {
+    margin: 5px 0 0;
+    max-width: 140px;
+    color: rgba(255, 255, 255, 0.78);
+    font-size: 10px;
+    font-weight: 500;
+    line-height: 1.35;
+}
+
+.ratingControl {
+    width: max-content;
+}
+
+.ratingScale {
+    display: grid;
+    grid-template-columns: repeat(5, 30px);
+    gap: 7px;
+}
+
+.scoreButton {
+    display: inline-flex;
+    width: 30px;
+    height: 30px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 999px;
+    background: rgba(18, 25, 40, 0.78);
+    color: rgba(255, 255, 255, 0.92);
+    font-size: 11px;
+    font-weight: 900;
+    line-height: 1;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.scoreButton:hover:not(:disabled),
+.scoreActive {
+    border-color: rgba(255, 178, 94, 0.92);
+    background: #ff8a2c;
+    box-shadow: 0 0 0 4px rgba(255, 138, 44, 0.1), 0 0 18px rgba(255, 138, 44, 0.45);
+    color: #080d1c;
+    transform: translateY(-1px);
+}
+
+.scoreButton:disabled,
+.comment:disabled,
+.submitButton:disabled {
+    cursor: not-allowed;
+}
+
+.scaleLabels {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 7px;
+    color: #ff5b4f;
+    font-size: 10px;
+    font-weight: 800;
+}
+
+.scaleLabels span:last-child {
+    color: #4ade80;
+}
+
+.commentPanel {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(130px, 160px);
+    align-items: start;
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.panelContent {
+    min-width: 0;
+}
+
+.feedbackToggle {
+    display: inline-flex;
+    min-height: 32px;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    background: rgba(20, 25, 39, 0.58);
+    padding: 0 10px;
+    color: rgba(255, 255, 255, 0.88);
+    font: inherit;
+    font-size: 10px;
+    font-weight: 800;
+    transition: border-color 160ms ease, background 160ms ease, color 160ms ease;
+}
+
+.feedbackToggle:hover:not(:disabled) {
+    border-color: rgba(255, 255, 255, 0.16);
+    background: rgba(25, 31, 48, 0.7);
+    color: #fff;
+}
+
+.feedbackToggle:disabled {
+    cursor: not-allowed;
+    opacity: 0.58;
+}
+
+.feedbackIcon {
+    position: relative;
+    display: inline-block;
+    width: 17px;
+    height: 14px;
+    border: 2px solid rgba(255, 255, 255, 0.72);
+    border-radius: 5px;
+}
+
+.feedbackIcon::before {
+    position: absolute;
+    left: 3px;
+    top: 5px;
+    width: 6px;
+    height: 2px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.72);
+    content: "";
+}
+
+.feedbackIcon::after {
+    position: absolute;
+    left: 3px;
+    bottom: -5px;
+    width: 6px;
+    height: 6px;
+    border-bottom: 2px solid rgba(255, 255, 255, 0.72);
+    border-left: 2px solid rgba(255, 255, 255, 0.72);
+    background: rgba(20, 25, 39, 0.58);
+    content: "";
+    transform: skewY(-28deg);
+}
+
+.commentLabel {
+    display: block;
+    margin-top: 10px;
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.comment {
+    margin-top: 8px;
+    width: 100%;
+    min-height: 70px;
+    resize: vertical;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    background: rgba(5, 6, 8, 0.28);
+    padding: 10px 12px;
+    color: #fff;
+    font: inherit;
+    font-size: 12px;
+    outline: none;
+}
+
+.comment:focus {
+    border-color: rgba(255, 138, 44, 0.72);
+}
+
+.message {
+    margin: 8px 0 0;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 10px;
+    line-height: 1.35;
+}
+
+.error {
+    color: #fca5a5;
+}
+
+.submitButton {
+    display: inline-flex;
+    min-height: 36px;
+    width: 100%;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border: 0;
+    border-radius: 12px;
+    background: #ff8a2c;
+    padding: 9px 12px;
+    color: #050608;
+    font-size: 11px;
+    font-weight: 900;
+    transition: background 160ms ease, opacity 160ms ease, transform 160ms ease;
+}
+
+.submitButton:hover:not(:disabled) {
+    background: #ff9b4d;
+    transform: translateY(-1px);
+}
+
+.submitButton:disabled {
+    opacity: 0.5;
+}
+
+.submitCheck {
+    width: 11px;
+    height: 6px;
+    border-bottom: 2px solid currentColor;
+    border-left: 2px solid currentColor;
+    transform: rotate(-45deg) translateY(-1px);
+}
+
+@media (max-width: 720px) {
+    .feedback {
+        right: 12px;
+        bottom: 12px;
+        width: calc(100% - 24px);
+        padding: 14px;
+    }
+
+    .ratingGroup {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+
+    .ratingControl {
+        grid-column: 1 / -1;
+        width: 100%;
+    }
+
+    .ratingScale {
+        grid-template-columns: repeat(5, minmax(36px, 1fr));
+        gap: 8px;
+    }
+
+    .scoreButton {
+        width: 100%;
+        height: 38px;
+    }
+
+    .commentPanel {
+        grid-template-columns: 1fr;
+    }
+}

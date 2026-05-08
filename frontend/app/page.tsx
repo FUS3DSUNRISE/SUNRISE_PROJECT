@@ -7,6 +7,7 @@ import { useGenerationStore } from "@/state/generationStore";
 import GenerateButton from "@/components/GenerateButton";
 import AuthModal from "@/components/AuthModal";
 import PreviewCanvas from "@/components/PreviewCanvas";
+import FeedbackWidget from "@/components/FeedbackWidget";
 import logo from "../public/logo.png";
 import { getDownloadUrl, getPreviewBlobUrl, modifyModel } from "@/services/api";
 import ParameterPanel from "@/components/ParameterPanel";
@@ -81,6 +82,7 @@ export default function Home() {
     const userInitial = user?.email?.[0]?.toUpperCase() ?? "U";
 
     const isGenerateDisabled = prompt.length > MAX_PROMPT_LENGTH;
+    const isModifyBusy = status === "submitted" || status === "processing";
 
     const getFormattedParameters = () => ({
         size: parameters.size,
@@ -114,10 +116,14 @@ export default function Home() {
             store.setResult(newResult);
             store.setStatus("success");
             setModifyCommand("");
-        } catch (error: any) {
+        } catch (error) {
             console.error("Modification failed:", error);
             useGenerationStore.getState().setStatus("error");
-            setErrorMessage(error.message || "Modification failed. Please try again.");
+            setErrorMessage(
+                error instanceof Error
+                    ? error.message
+                    : "Modification failed. Please try again."
+            );
         }
     };
 
@@ -235,6 +241,18 @@ export default function Home() {
                                 <div className="h-[560px] w-full">
                                     <PreviewCanvas modelPath={previewModelPath} />
                                 </div>
+
+                                {status === "success" && result?.result_path && (
+                                    <FeedbackWidget
+                                        key={result.id}
+                                        promptId={result.id}
+                                        disabledReason={
+                                            result.id === 999
+                                                ? "Demo models are not saved to the database."
+                                                : undefined
+                                        }
+                                    />
+                                )}
                             </div>
 
                             <div className="mt-5">
@@ -382,15 +400,15 @@ export default function Home() {
                                                         value={modifyCommand}
                                                         onChange={(e) => setModifyCommand(e.target.value)}
                                                         placeholder="e.g., Make it taller..."
-                                                        disabled={status === "submitted" || status === "processing"}
+                                                        disabled={isModifyBusy}
                                                         className="min-w-0 flex-1 rounded-lg border border-white/10 bg-[#0f111a] px-4 py-3 text-sm text-white outline-none focus:border-[#ff8a2c]"
                                                     />
                                                     <button
                                                         onClick={handleModify}
-                                                        disabled={!modifyCommand.trim() || status === "submitted" || status === "processing"}
+                                                        disabled={!modifyCommand.trim() || isModifyBusy}
                                                         className="shrink-0 rounded-lg bg-[#ff8a2c] px-6 py-3 text-sm font-bold text-black transition hover:bg-[#ff9b4d] disabled:opacity-50"
                                                     >
-                                                        {status === "submitted" || status === "processing" ? "Modifying..." : "Modify"}
+                                                        {isModifyBusy ? "Modifying..." : "Modify"}
                                                     </button>
                                                 </div>
                                             </div>
@@ -442,6 +460,12 @@ export default function Home() {
                                     >
                                         [Reset]
                                     </button>
+                                    <Link
+                                        href="/analytics"
+                                        className="text-xs text-[#ff8a2c]/70 hover:text-[#ff8a2c]"
+                                    >
+                                        [Analytics]
+                                    </Link>
                                 </div>
                             </div>
                         </div>

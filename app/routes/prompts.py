@@ -3,7 +3,6 @@ from app.extensions import db
 from app.models.prompt import PromptRequest, PromptStatus
 from app.models.user import User
 from app.services.prompt_service import Parameters
-from app.services.ambiguity_detector import AmbiguityDetector
 from app.services.prompt_service import PromptService
 from langchain_openai import ChatOpenAI
 from app.models.feedback import GenerationFeedback, FeedbackRating
@@ -12,6 +11,7 @@ import csv
 import io
 import os
 import json
+import config
 
 
 prompts_bp = Blueprint("prompts", __name__)
@@ -50,11 +50,10 @@ def create_prompt():
             "message": "User not found"
         }), 404
 
-    is_clear, reason = AmbiguityDetector.analyze_prompt(prompt_text)
     llm_for_classify = ChatOpenAI(
         base_url=current_app.config.get("LLM_BASE_URL", "https://api.groq.com/openai/v1"), 
-        api_key=current_app.config.get("LLM_API_KEY", ""), 
-        model=current_app.config.get("LLM_MODEL", "llama-3.3-70b-versatile")
+        api_key=config.Config.LLM_API_KEY, 
+        model=current_app.config.get("LLM_MODEL", "openai/gpt-oss-120b")
     )
     classification = PromptService.classify_intent(prompt_text, llm_for_classify)
 
@@ -63,7 +62,7 @@ def create_prompt():
         return jsonify({"status": "error", "message": classification["reason"]}), 400
 
     # CLARIFY 
-    if not is_clear or classification["action"] == "clarify":
+    if classification["action"] == "clarify":
         final_reason = classification.get("reason") or reason
         prompt = PromptRequest(
             parameters=validated_params,
@@ -300,7 +299,7 @@ def modify_prompt(id):
 
 @prompts_bp.route("/<int:id>/feedback", methods=["POST"])
 def create_feedback(id):
-    user_id = 1 #session.get("user_id")
+    user_id = session.get("user_id")
     if not user_id:
         return jsonify({"error": "Not authenticated"}), 401
 
@@ -310,6 +309,13 @@ def create_feedback(id):
 
     if prompt.user_id != user_id:
         return jsonify({"error": "Unauthorized access to this prompt"}), 403
+
+    existing_feedback = GenerationFeedback.query.filter_by(
+        prompt_id=prompt.id,
+        user_id=user_id
+    ).first()
+    if existing_feedback:
+        return jsonify({"error": "Feedback already submitted for this prompt"}), 409
 
     data = request.get_json() or {}
 
@@ -371,13 +377,15 @@ def feedback_analytics():
             "success_rate": 0,
             "average_accuracy_score": None,
             "average_quality_score": None,
-            "ratings": {}
+            "ratings": {},
+            "comments": []
         }), 200
 
     ratings = {}
     success_count = 0
     accuracy_scores = []
     quality_scores = []
+    comments = []
 
     for feedback in feedbacks:
         rating = feedback.rating.value
@@ -398,12 +406,26 @@ def feedback_analytics():
         if is_success:
             success_count += 1
 
+        if feedback.comment and feedback.comment.strip():
+            comments.append({
+                "id": feedback.id,
+                "prompt_id": feedback.prompt_id,
+                "user_id": feedback.user_id,
+                "rating": rating,
+                "accuracy_score": feedback.accuracy_score,
+                "quality_score": feedback.quality_score,
+                "comment": feedback.comment,
+                "prompt": feedback.prompt.prompt_text if feedback.prompt else None,
+                "created_at": feedback.created_at.isoformat() if feedback.created_at else None
+            })
+
     return jsonify({
         "total_feedback": total_feedback,
         "success_rate": round(success_count / total_feedback * 100, 2),
         "average_accuracy_score": round(sum(accuracy_scores) / len(accuracy_scores), 2) if accuracy_scores else None,
         "average_quality_score": round(sum(quality_scores) / len(quality_scores), 2) if quality_scores else None,
-        "ratings": ratings
+        "ratings": ratings,
+        "comments": comments
     }), 200
 
 @prompts_bp.route("/feedback/export", methods=["GET"])
