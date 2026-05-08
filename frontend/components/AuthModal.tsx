@@ -46,8 +46,8 @@ export default function AuthModal({ type, onCloseAction }: Props) {
 
             onCloseAction();
            
-        } catch (e: any) {
-            setErrorMessage(e.message || "Something went wrong.");
+        } catch (e: unknown) {
+            setErrorMessage(e instanceof Error ? e.message : "Something went wrong.");
         } finally {
             setLoading(false);
         }

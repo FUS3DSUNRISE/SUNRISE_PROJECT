@@ -7,12 +7,13 @@ import { useAuthStore } from "@/state/authStore";
 
 type GenerateButtonProps = {
     disabled?: boolean;
+    onGenerateStart?: () => void;
 };
 
 const MAX_PROMPT_LENGTH = 120;
 const FORBIDDEN_CHARACTERS_REGEX = /[<>[\]{}]/;
 
-export default function GenerateButton({ disabled = false }: GenerateButtonProps) {
+export default function GenerateButton({ disabled = false, onGenerateStart }: GenerateButtonProps) {
     const prompt = useGenerationStore((s) => s.prompt);
     const parameters = useGenerationStore((s) => s.parameters);
     const status = useGenerationStore((s) => s.status);
@@ -61,16 +62,6 @@ export default function GenerateButton({ disabled = false }: GenerateButtonProps
             return;
         }
 
-        const formattedParameters = {
-            size: parameters.size,
-            geometry: parameters.geometry,
-            material: {
-                material_type: parameters.material.type.charAt(0).toUpperCase() + parameters.material.type.slice(1),
-                roughness: parameters.material.roughness,
-                metallic: parameters.material.metallic
-            }
-        };
-
         try {
             setErrorMessage(null);
             setShowSpinner(true);
@@ -80,6 +71,7 @@ export default function GenerateButton({ disabled = false }: GenerateButtonProps
                 parameters: getFormattedParameters(),
             };
 
+            onGenerateStart?.();
             setStatus("submitted");
             await new Promise((resolve) => setTimeout(resolve, 500));
 
@@ -89,11 +81,15 @@ export default function GenerateButton({ disabled = false }: GenerateButtonProps
 
             setResult(result);
             setStatus("success");
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error("Generation failed:", error);
             setResult(null);
             setStatus("error");
-            setErrorMessage(error.message || "Something went wrong during generation.");
+            setErrorMessage(
+                error instanceof Error
+                    ? error.message
+                    : "Something went wrong during generation."
+            );
         } finally {
             setShowSpinner(false);
         }

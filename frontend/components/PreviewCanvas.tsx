@@ -1,28 +1,46 @@
 "use client";
 
 import { Suspense, useMemo } from "react";
-import { Canvas } from "@react-three/fiber";
-// Add import of the Center component
-import { Environment, OrbitControls, useGLTF, Center } from "@react-three/drei";
+import { Canvas, useLoader } from "@react-three/fiber";
+import { OrbitControls, useGLTF, Center } from "@react-three/drei";
+import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 
 type PreviewCanvasProps = {
     modelPath: string;
+    modelType?: string;
 };
 
-function Model({ modelPath }: PreviewCanvasProps) {
+function GltfModel({ modelPath }: PreviewCanvasProps) {
     const { scene } = useGLTF(modelPath);
     const clonedScene = useMemo(() => scene.clone(), [scene]);
 
     return (
-        // Component Center automatically calculates the "box" of the object and centers it perfectly
         <Center>
-            {/* I removed the hard scale and position so as not to break small models */}
             <primitive object={clonedScene} />
         </Center>
     );
 }
 
-export default function PreviewCanvas({ modelPath }: PreviewCanvasProps) {
+function ObjModel({ modelPath }: PreviewCanvasProps) {
+    const object = useLoader(OBJLoader, modelPath);
+    const clonedObject = useMemo(() => object.clone(), [object]);
+
+    return (
+        <Center>
+            <primitive object={clonedObject} />
+        </Center>
+    );
+}
+
+function Model({ modelPath, modelType }: PreviewCanvasProps) {
+    if (modelType?.toUpperCase() === "OBJ") {
+        return <ObjModel modelPath={modelPath} />;
+    }
+
+    return <GltfModel modelPath={modelPath} />;
+}
+
+export default function PreviewCanvas({ modelPath, modelType }: PreviewCanvasProps) {
     return (
         <Canvas
             camera={{ position: [0, 2, 5], fov: 50 }}
@@ -33,8 +51,7 @@ export default function PreviewCanvas({ modelPath }: PreviewCanvasProps) {
             <directionalLight position={[-8, 6, 4]} intensity={1.2} />
 
            <Suspense fallback={null}>
-                {/* <Environment preset="city" /> */}
-                <Model modelPath={modelPath} />
+                <Model key={`${modelType ?? "GLB"}:${modelPath}`} modelPath={modelPath} modelType={modelType} />
             </Suspense>
 
             <OrbitControls
