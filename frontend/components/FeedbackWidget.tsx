@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { submitFeedback, type FeedbackRating } from "@/services/api";
 import styles from "./FeedbackWidget.module.css";
 
 type FeedbackWidgetProps = {
     promptId: number;
     disabledReason?: string;
+    onSubmitted?: () => void;
 };
 
 type SubmitState = "idle" | "submitting" | "submitted" | "error";
@@ -15,8 +16,8 @@ type FeedbackError = Error & { status?: number };
 const storageKeyFor = (promptId: number) => `sunrise-feedback-submitted-${promptId}`;
 const ratingOptions = Array.from({ length: 5 }, (_, index) => index + 1);
 
-const hasStoredFeedback = (promptId: number) =>
-    typeof window !== "undefined" && localStorage.getItem(storageKeyFor(promptId));
+export const hasStoredFeedback = (promptId: number) =>
+    typeof window !== "undefined" && Boolean(localStorage.getItem(storageKeyFor(promptId)));
 
 const ratingFromScore = (score: number): FeedbackRating => {
     if (score >= 4) return "positive";
@@ -24,7 +25,7 @@ const ratingFromScore = (score: number): FeedbackRating => {
     return "neutral";
 };
 
-export default function FeedbackWidget({ promptId, disabledReason }: FeedbackWidgetProps) {
+export default function FeedbackWidget({ promptId, disabledReason, onSubmitted }: FeedbackWidgetProps) {
     const [qualityScore, setQualityScore] = useState<number | null>(null);
     const [accuracyScore, setAccuracyScore] = useState<number | null>(null);
     const [isCommentOpen, setIsCommentOpen] = useState(false);
@@ -32,8 +33,6 @@ export default function FeedbackWidget({ promptId, disabledReason }: FeedbackWid
     const [submitState, setSubmitState] = useState<SubmitState>(() =>
         hasStoredFeedback(promptId) ? "submitted" : "idle"
     );
-    const [isDismissed, setIsDismissed] = useState(() => Boolean(hasStoredFeedback(promptId)));
-    const [isFadingOut, setIsFadingOut] = useState(false);
     const [message, setMessage] = useState<string | null>(null);
 
     const isSubmitted = submitState === "submitted";
@@ -47,44 +46,8 @@ export default function FeedbackWidget({ promptId, disabledReason }: FeedbackWid
         return "Needs work";
     }, [qualityScore]);
 
-    useEffect(() => {
-        if (!isSubmitted || isDismissed) return;
-
-        const fadeTimer = window.setTimeout(() => {
-            setIsFadingOut(true);
-        }, 2200);
-        const dismissTimer = window.setTimeout(() => {
-            setIsDismissed(true);
-        }, 2800);
-
-        return () => {
-            window.clearTimeout(fadeTimer);
-            window.clearTimeout(dismissTimer);
-        };
-    }, [isDismissed, isSubmitted]);
-
-    if (isSubmitted && isDismissed) {
-        return null;
-    }
-
     if (isSubmitted) {
-        return (
-            <section
-                className={`${styles.feedback} ${styles.submitted} ${isFadingOut ? styles.fadingOut : ""}`}
-                aria-live="polite"
-                aria-label="Feedback submitted"
-            >
-                <div className={styles.submittedSummary}>
-                    <span className={styles.successIcon} aria-hidden="true" />
-                    <div>
-                        <p className={styles.eyebrow}>Feedback saved</p>
-                        <p className={styles.title}>
-                            {message || "Feedback submitted. Thank you."}
-                        </p>
-                    </div>
-                </div>
-            </section>
-        );
+        return null;
     }
 
     const handleSubmit = async () => {
@@ -104,6 +67,7 @@ export default function FeedbackWidget({ promptId, disabledReason }: FeedbackWid
             localStorage.setItem(storageKeyFor(promptId), "true");
             setSubmitState("submitted");
             setMessage("Feedback submitted. Thank you.");
+            onSubmitted?.();
         } catch (error) {
             const feedbackError = error as FeedbackError;
             const duplicate = feedbackError.status === 409;
@@ -111,6 +75,7 @@ export default function FeedbackWidget({ promptId, disabledReason }: FeedbackWid
                 localStorage.setItem(storageKeyFor(promptId), "true");
                 setSubmitState("submitted");
                 setMessage("Feedback already submitted for this result.");
+                onSubmitted?.();
                 return;
             }
 
@@ -121,6 +86,7 @@ export default function FeedbackWidget({ promptId, disabledReason }: FeedbackWid
 
     return (
         <section
+            data-tour="feedback"
             className={styles.feedback}
             aria-label="Rate this generated model"
         >

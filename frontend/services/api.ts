@@ -147,6 +147,8 @@ export type FeedbackComment = {
     quality_score: number | null;
     comment: string;
     prompt: string | null;
+    modification_command: string | null;
+    modified_at: string | null;
     created_at: string | null;
 };
 

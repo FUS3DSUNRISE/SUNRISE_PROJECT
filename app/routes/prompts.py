@@ -6,6 +6,7 @@ from app.services.prompt_service import Parameters
 from app.services.prompt_service import PromptService
 from langchain_openai import ChatOpenAI
 from app.models.feedback import GenerationFeedback, FeedbackRating
+from datetime import timezone
 from sqlalchemy import func
 import csv
 import io
@@ -15,6 +16,16 @@ import config
 
 
 prompts_bp = Blueprint("prompts", __name__)
+
+
+def iso_utc(value):
+    if not value:
+        return None
+
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+
+    return value.isoformat()
 
 
 @prompts_bp.route("", methods=["POST"])
@@ -407,6 +418,7 @@ def feedback_analytics():
             success_count += 1
 
         if feedback.comment and feedback.comment.strip():
+            prompt = feedback.prompt
             comments.append({
                 "id": feedback.id,
                 "prompt_id": feedback.prompt_id,
@@ -415,8 +427,10 @@ def feedback_analytics():
                 "accuracy_score": feedback.accuracy_score,
                 "quality_score": feedback.quality_score,
                 "comment": feedback.comment,
-                "prompt": feedback.prompt.prompt_text if feedback.prompt else None,
-                "created_at": feedback.created_at.isoformat() if feedback.created_at else None
+                "prompt": prompt.prompt_text if prompt else None,
+                "modification_command": prompt.modification_command if prompt else None,
+                "modified_at": iso_utc(prompt.updated_at) if prompt else None,
+                "created_at": iso_utc(feedback.created_at)
             })
 
     return jsonify({
@@ -450,6 +464,7 @@ def export_feedback():
         "success_rate_value",
         "comment",
         "prompt_text",
+        "modification_command",
         "parameters",
         "result_path",
         "is_modified_version",
@@ -480,11 +495,12 @@ def export_feedback():
             success_label,  # useful for Power BI average = success rate
             feedback.comment,
             prompt.prompt_text,
+            prompt.modification_command,
             json.dumps(feedback.parameters) if feedback.parameters else None,
             feedback.result_path,
             is_modified_version,
             prompt.parent_prompt_id,
-            feedback.created_at.isoformat()
+            iso_utc(feedback.created_at)
         ])
 
     return Response(

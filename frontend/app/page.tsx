@@ -7,7 +7,7 @@ import { useGenerationStore } from "@/state/generationStore";
 import GenerateButton from "@/components/GenerateButton";
 import AuthModal from "@/components/AuthModal";
 import PreviewCanvas from "@/components/PreviewCanvas";
-import FeedbackWidget from "@/components/FeedbackWidget";
+import FeedbackWidget, { hasStoredFeedback } from "@/components/FeedbackWidget";
 import ImportAssetPanel, { type LocalAsset } from "@/components/ImportAssetPanel";
 import GuidedTour, { type GuidedTourStep } from "@/components/GuidedTour";
 import logo from "../public/logo.png";
@@ -25,15 +25,20 @@ const demoModels = [
 ];
 
 const MAX_PROMPT_LENGTH = 120;
-const TOUR_STORAGE_KEY = "scailab-guided-tour-seen-v2";
+const TOUR_STORAGE_KEY = "scailab-guided-tour-seen-v3";
 
 const promptExamples = [
-    "A simple wooden pallet",
-    "A classic wooden kitchen table",
-    "A bedside table with one drawer",
+    "Create a simple wooden pallet",
+    "Create a classic kitchen table",
+    "Create a chair",
 ];
 
 const guidedTourSteps: GuidedTourStep[] = [
+    {
+        target: "[data-tour='auth-actions']",
+        title: "Log in or create an account",
+        body: "Log in or sign up before generating or importing assets so your files, downloads, and feedback stay connected to your account.",
+    },
     {
         target: "[data-tour='parameters']",
         title: "Configure the settings before generating",
@@ -43,6 +48,11 @@ const guidedTourSteps: GuidedTourStep[] = [
         target: "[data-tour='preview']",
         title: "Your current 3D model",
         body: "This field displays the active object. Use the cursor to rotate the model and assess the results.",
+    },
+    {
+        target: "[data-tour='feedback']",
+        title: "Rate the generated model",
+        body: "After reviewing the result, score its quality and accuracy. You can also add an optional comment for analytics.",
     },
     {
         target: "[data-tour='examples']",
@@ -64,6 +74,12 @@ const guidedTourSteps: GuidedTourStep[] = [
         title: "Generate the first version",
         body: "Submit your request to view the result in 3D. As soon as the model is ready, you can download it or make further edits using the new features that will appear below.",
     },
+    {
+        target: "[data-tour='download']",
+        title: "Download the finished file",
+        body: "When the asset is ready, use this button to save the generated GLB file locally.",
+    },
+    
     {
         target: "[data-tour='modify']",
         title: "Iterate with modification prompts",
@@ -117,6 +133,7 @@ export default function Home() {
     const [isTourOpen, setIsTourOpen] = useState(false);
     const [exampleIndex, setExampleIndex] = useState(0);
     const [showPromptExamples, setShowPromptExamples] = useState(false);
+    const [feedbackSubmittedPromptId, setFeedbackSubmittedPromptId] = useState<number | null>(null);
 
     useEffect(() => {
         const hasSeenTour = window.localStorage.getItem(TOUR_STORAGE_KEY);
@@ -186,13 +203,38 @@ export default function Home() {
             ? { kind: "generated", id: result.id, name: generatedModelName }
             : null;
     const canModifyCurrentTarget = Boolean(modifyTarget);
+    const canDownloadCurrentResult = status === "success" && Boolean(result?.result_path) && !activeLocalAsset;
+    const hasRatedCurrentResult = Boolean(
+        result?.id && (feedbackSubmittedPromptId === result.id || hasStoredFeedback(result.id))
+    );
+    const canRateCurrentResult =
+        status === "success" &&
+        Boolean(result?.result_path) &&
+        !activeLocalAsset &&
+        !hasRatedCurrentResult;
     const shouldShowResultPanel =
         status === "error" ||
         Boolean(modifyTarget) ||
         (status === "success" && result && !activeLocalAsset);
-    const activeTourSteps = canModifyCurrentTarget
-        ? guidedTourSteps
-        : guidedTourSteps.filter((step) => step.target !== "[data-tour='modify']");
+    const activeTourSteps = guidedTourSteps.filter((step) => {
+        if (step.target === "[data-tour='auth-actions']") {
+            return !user;
+        }
+
+        if (step.target === "[data-tour='download']") {
+            return canDownloadCurrentResult;
+        }
+
+        if (step.target === "[data-tour='feedback']") {
+            return canRateCurrentResult;
+        }
+
+        if (step.target === "[data-tour='modify']") {
+            return canModifyCurrentTarget;
+        }
+
+        return true;
+    });
 
     const isGenerateDisabled = prompt.length > MAX_PROMPT_LENGTH;
     const isModifyBusy = status === "submitted" || status === "processing";
@@ -334,7 +376,7 @@ export default function Home() {
                         </a>
 
                         {!user ? (
-                            <>
+                            <div data-tour="auth-actions" className="flex items-center gap-6">
                                 <button
                                     onClick={() => setAuthModal("login")}
                                     className="transition hover:text-white"
@@ -347,7 +389,7 @@ export default function Home() {
                                 >
                                     Sign Up Free
                                 </button>
-                            </>
+                            </div>
                         ) : (
                             <div className="relative">
                                 <button
@@ -441,6 +483,7 @@ export default function Home() {
                                     <FeedbackWidget
                                         key={result.id}
                                         promptId={result.id}
+                                        onSubmitted={() => setFeedbackSubmittedPromptId(result.id)}
                                         disabledReason={
                                             result.id === 999
                                                 ? "Demo models are not saved to the database."
@@ -613,6 +656,7 @@ export default function Home() {
 
                                                         <div className="flex flex-col gap-3 sm:flex-row">
                                                             <a
+                                                                data-tour="download"
                                                                 href={result.id === 999 ? result.result_path : getDownloadUrl(result.id)}
                                                                 download={result.id === 999 ? "demo-model.glb" : undefined}
                                                                 className="flex flex-1 items-center justify-center rounded-[14px] border border-white/10 bg-[#171927] px-4 py-4 text-base font-medium text-white transition hover:bg-white/5"
