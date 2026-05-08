@@ -9,14 +9,17 @@ class Config:
 
     SECRET_KEY = os.getenv("SECRET_KEY", "dev-fallback-key-123")
 
-    SQLALCHEMY_DATABASE_URI = "sqlite:///app.db"
+    SQLALCHEMY_DATABASE_URI = os.getenv(
+        "DATABASE_URL",
+        "sqlite:///app.db"
+    )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     CELERY_BROKER_URL = "redis://localhost:6379/0"
     CELERY_RESULT_BACKEND = "redis://localhost:6379/0"
 
     LLM_BASE_URL = "https://api.groq.com/openai/v1"
-    LLM_API_KEY = "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"
+    LLM_API_KEY = os.getenv("LLM_API_KEY")
     LLM_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
 
     SESSION_COOKIE_SAMESITE = "Lax"
