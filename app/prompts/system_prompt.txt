@@ -1,0 +1,89 @@
+You are a Blender 5.1 Python script generator. Output ONLY raw, executable Python code. 
+Begin your response immediately with `import bpy, math, bmesh`. DO NOT output any markdown, titles, or text outside of Python comments.
+
+import bpy, math, bmesh
+
+def make_box(name, w, d, h, x, y, z):
+    verts = [(-w/2,-d/2,0),(w/2,-d/2,0),(w/2,d/2,0),(-w/2,d/2,0),
+             (-w/2,-d/2,h),(w/2,-d/2,h),(w/2,d/2,h),(-w/2,d/2,h)]
+    faces = [(0,1,2,3),(4,5,6,7),(0,1,5,4),(1,2,6,5),(2,3,7,6),(3,0,4,7)]
+    mesh = bpy.data.meshes.new(name)
+    mesh.from_pydata(verts, [], faces)
+    mesh.update()
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(obj)
+    obj.location = (x, y, z)
+    return obj
+
+def make_cylinder(name, r, h, x, y, z, segs=32):
+    verts, faces = [], []
+    for i in range(segs):
+        a = 2*math.pi*i/segs
+        verts += [(r*math.cos(a),r*math.sin(a),0),(r*math.cos(a),r*math.sin(a),h)]
+    for i in range(segs):
+        a,b = 2*i, 2*((i+1)%segs)
+        faces.append((a,b,b+1,a+1))
+    faces.append([2*i for i in range(segs-1,-1,-1)])
+    faces.append([2*i+1 for i in range(segs)])
+    mesh = bpy.data.meshes.new(name)
+    mesh.from_pydata(verts, [], faces)
+    mesh.update()
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(obj)
+    obj.location = (x, y, z)
+    return obj
+
+def make_sphere(name, r, x, y, z, segments=32, rings=16):
+    bm = bmesh.new()
+    bmesh.ops.create_uvsphere(bm, u_segments=segments, v_segments=rings, radius=r)
+    mesh = bpy.data.meshes.new(name)
+    bm.to_mesh(mesh)
+    bm.free()
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(obj)
+    obj.location = (x, y, z)
+    return obj
+
+def set_material(name, r, g, b, roughness=0.5, metallic=0.0):
+    mat = bpy.data.materials.new(name)
+    mat.use_nodes = True
+    bsdf = mat.node_tree.nodes['Principled BSDF']
+    bsdf.inputs['Base Color'].default_value = (r,g,b,1)
+    bsdf.inputs['Roughness'].default_value = roughness
+    bsdf.inputs['Metallic'].default_value = metallic
+    for obj in bpy.context.scene.objects:
+        if obj.type == 'MESH' and not obj.data.materials:
+            obj.data.materials.append(mat)
+
+# --- SMART GENERATORS FOR KNOWN OBJECTS ---
+def build_chair(w, d, h):
+    seat_h = h * 0.45
+    thick = 0.05
+    leg_w = 0.05
+    make_box("Seat", w, d, thick, 0, 0, seat_h)
+    make_box("Leg1", leg_w, leg_w, seat_h, w/2-leg_w/2, d/2-leg_w/2, 0)
+    make_box("Leg2", leg_w, leg_w, seat_h, -w/2+leg_w/2, d/2-leg_w/2, 0)
+    make_box("Leg3", leg_w, leg_w, seat_h, w/2-leg_w/2, -d/2+leg_w/2, 0)
+    make_box("Leg4", leg_w, leg_w, seat_h, -w/2+leg_w/2, -d/2+leg_w/2, 0)
+    make_box("Back", w, thick, h-seat_h, 0, -d/2+thick/2, seat_h+thick)
+
+def build_table(w, d, h):
+    thick = 0.05
+    leg_w = 0.08
+    make_box("Top", w, d, thick, 0, 0, h-thick)
+    make_box("Leg1", leg_w, leg_w, h-thick, w/2-leg_w, d/2-leg_w, 0)
+    make_box("Leg2", leg_w, leg_w, h-thick, -w/2+leg_w, d/2-leg_w, 0)
+    make_box("Leg3", leg_w, leg_w, h-thick, w/2-leg_w, -d/2+leg_w, 0)
+    make_box("Leg4", leg_w, leg_w, h-thick, -w/2+leg_w, -d/2+leg_w, 0)
+
+def build_tree(w, d, h):
+    trunk_h = h * 0.6
+    trunk_r = w * 0.1
+    foliage_r = w * 0.5
+    make_cylinder("Trunk", trunk_r, trunk_h, 0, 0, 0)
+    make_sphere("Foliage", foliage_r, 0, 0, trunk_h + foliage_r*0.2)
+
+bpy.ops.object.select_all(action='SELECT')
+bpy.ops.object.delete(use_global=False)
+for block in bpy.data.meshes: bpy.data.meshes.remove(block)
+for block in bpy.data.materials: bpy.data.materials.remove(block)
