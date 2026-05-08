@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { submitFeedback, type FeedbackRating } from "@/services/api";
 import styles from "./FeedbackWidget.module.css";
 
@@ -15,6 +15,9 @@ type FeedbackError = Error & { status?: number };
 const storageKeyFor = (promptId: number) => `sunrise-feedback-submitted-${promptId}`;
 const ratingOptions = Array.from({ length: 5 }, (_, index) => index + 1);
 
+const hasStoredFeedback = (promptId: number) =>
+    typeof window !== "undefined" && localStorage.getItem(storageKeyFor(promptId));
+
 const ratingFromScore = (score: number): FeedbackRating => {
     if (score >= 4) return "positive";
     if (score <= 2) return "negative";
@@ -27,10 +30,10 @@ export default function FeedbackWidget({ promptId, disabledReason }: FeedbackWid
     const [isCommentOpen, setIsCommentOpen] = useState(false);
     const [comment, setComment] = useState("");
     const [submitState, setSubmitState] = useState<SubmitState>(() =>
-        typeof window !== "undefined" && localStorage.getItem(storageKeyFor(promptId))
-            ? "submitted"
-            : "idle"
+        hasStoredFeedback(promptId) ? "submitted" : "idle"
     );
+    const [isDismissed, setIsDismissed] = useState(() => Boolean(hasStoredFeedback(promptId)));
+    const [isFadingOut, setIsFadingOut] = useState(false);
     const [message, setMessage] = useState<string | null>(null);
 
     const isSubmitted = submitState === "submitted";
@@ -43,6 +46,46 @@ export default function FeedbackWidget({ promptId, disabledReason }: FeedbackWid
         if (qualityScore >= 3) return "Helpful";
         return "Needs work";
     }, [qualityScore]);
+
+    useEffect(() => {
+        if (!isSubmitted || isDismissed) return;
+
+        const fadeTimer = window.setTimeout(() => {
+            setIsFadingOut(true);
+        }, 2200);
+        const dismissTimer = window.setTimeout(() => {
+            setIsDismissed(true);
+        }, 2800);
+
+        return () => {
+            window.clearTimeout(fadeTimer);
+            window.clearTimeout(dismissTimer);
+        };
+    }, [isDismissed, isSubmitted]);
+
+    if (isSubmitted && isDismissed) {
+        return null;
+    }
+
+    if (isSubmitted) {
+        return (
+            <section
+                className={`${styles.feedback} ${styles.submitted} ${isFadingOut ? styles.fadingOut : ""}`}
+                aria-live="polite"
+                aria-label="Feedback submitted"
+            >
+                <div className={styles.submittedSummary}>
+                    <span className={styles.successIcon} aria-hidden="true" />
+                    <div>
+                        <p className={styles.eyebrow}>Feedback saved</p>
+                        <p className={styles.title}>
+                            {message || "Feedback submitted. Thank you."}
+                        </p>
+                    </div>
+                </div>
+            </section>
+        );
+    }
 
     const handleSubmit = async () => {
         if (!qualityScore || !accuracyScore || isBlocked) return;
@@ -78,7 +121,7 @@ export default function FeedbackWidget({ promptId, disabledReason }: FeedbackWid
 
     return (
         <section
-            className={`${styles.feedback} ${isSubmitted ? styles.submitted : ""}`}
+            className={styles.feedback}
             aria-label="Rate this generated model"
         >
             <div className={styles.header}>
@@ -87,7 +130,6 @@ export default function FeedbackWidget({ promptId, disabledReason }: FeedbackWid
                     <p className={styles.title}>How would you rate the quality and accuracy of this 3D model?</p>
                     <p className={styles.statusText}>{disabledReason || selectedLabel}</p>
                 </div>
-                {isSubmitted && <span className={styles.badge}>Submitted</span>}
             </div>
 
             <div className={styles.ratingGroup}>

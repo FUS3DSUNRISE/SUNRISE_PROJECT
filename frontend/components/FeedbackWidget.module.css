@@ -14,8 +14,45 @@
 }
 
 .submitted {
-    opacity: 0.58;
     pointer-events: none;
+}
+
+.fadingOut {
+    opacity: 0;
+    transform: translateY(8px);
+}
+
+.feedback,
+.fadingOut {
+    transition: opacity 500ms ease, transform 500ms ease;
+}
+
+.submittedSummary {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.successIcon {
+    position: relative;
+    display: inline-flex;
+    width: 34px;
+    height: 34px;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: rgba(34, 197, 94, 0.18);
+    box-shadow: 0 0 0 1px rgba(74, 222, 128, 0.24);
+}
+
+.successIcon::before {
+    width: 13px;
+    height: 7px;
+    border-bottom: 2px solid #86efac;
+    border-left: 2px solid #86efac;
+    content: "";
+    transform: rotate(-45deg) translateY(-1px);
 }
 
 .header {

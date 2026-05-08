@@ -9,6 +9,7 @@ import AuthModal from "@/components/AuthModal";
 import PreviewCanvas from "@/components/PreviewCanvas";
 import FeedbackWidget from "@/components/FeedbackWidget";
 import ImportAssetPanel, { type LocalAsset } from "@/components/ImportAssetPanel";
+import GuidedTour, { type GuidedTourStep } from "@/components/GuidedTour";
 import logo from "../public/logo.png";
 import { getDownloadUrl, getPreviewBlobUrl, modifyModel } from "@/services/api";
 import ParameterPanel from "@/components/ParameterPanel";
@@ -24,6 +25,51 @@ const demoModels = [
 ];
 
 const MAX_PROMPT_LENGTH = 120;
+const TOUR_STORAGE_KEY = "scailab-guided-tour-seen-v2";
+
+const promptExamples = [
+    "A simple wooden pallet",
+    "A classic wooden kitchen table",
+    "A bedside table with one drawer",
+];
+
+const guidedTourSteps: GuidedTourStep[] = [
+    {
+        target: "[data-tour='parameters']",
+        title: "Configure the settings before generating",
+        body: "Please specify the size, geometry, smoothness, and material values here. These settings will complement your text query to ensure the 3D result matches your idea as closely as possible.",
+    },
+    {
+        target: "[data-tour='preview']",
+        title: "Your current 3D model",
+        body: "This field displays the active object. Use the cursor to rotate the model and assess the results.",
+    },
+    {
+        target: "[data-tour='examples']",
+        title: "Start with an example",
+        body: "Use the ready-made model for practice. It’s quick and easy, and lets you try out all the features without having to create your own object from scratch.",
+    },
+    {
+        target: "[data-tour='import']",
+        title: "Upload your own model",
+        body: "Authorised users can import files. Once uploaded, you will be able to modify the object using text queries.",
+    },
+    {
+        target: "[data-tour='prompt']",
+        title: "Create a text query",
+        body: "Just describe the model. If you’re not sure where to start, use the ready-made examples and tips to get your first result in no time.",
+    },
+    {
+        target: "[data-tour='generate']",
+        title: "Generate the first version",
+        body: "Submit your request to view the result in 3D. As soon as the model is ready, you can download it or make further edits using the new features that will appear below.",
+    },
+    {
+        target: "[data-tour='modify']",
+        title: "Iterate with modification prompts",
+        body: "After you generate, import, or load a demo, ask for targeted edits like making it taller, smoother, metallic, or more stylized.",
+    },
+];
 
 type ModifyTarget =
     | {
@@ -68,6 +114,31 @@ export default function Home() {
     const [localAsset, setLocalAsset] = useState<(LocalAsset & { previewUrl: string }) | null>(null);
     const [importedAssetName, setImportedAssetName] = useState<string | null>(null);
     const [assetResetSignal, setAssetResetSignal] = useState(0);
+    const [isTourOpen, setIsTourOpen] = useState(false);
+    const [exampleIndex, setExampleIndex] = useState(0);
+    const [showPromptExamples, setShowPromptExamples] = useState(false);
+
+    useEffect(() => {
+        const hasSeenTour = window.localStorage.getItem(TOUR_STORAGE_KEY);
+
+        if (!hasSeenTour) {
+            const timeoutId = window.setTimeout(() => setIsTourOpen(true), 700);
+            return () => window.clearTimeout(timeoutId);
+        }
+    }, []);
+
+    useEffect(() => {
+        const intervalId = window.setInterval(() => {
+            setExampleIndex((current) => (current + 1) % promptExamples.length);
+        }, 3600);
+
+        return () => window.clearInterval(intervalId);
+    }, []);
+
+    const closeTour = () => {
+        window.localStorage.setItem(TOUR_STORAGE_KEY, "true");
+        setIsTourOpen(false);
+    };
 
     useEffect(() => {
         let objectUrl: string | null = null;
@@ -119,6 +190,9 @@ export default function Home() {
         status === "error" ||
         Boolean(modifyTarget) ||
         (status === "success" && result && !activeLocalAsset);
+    const activeTourSteps = canModifyCurrentTarget
+        ? guidedTourSteps
+        : guidedTourSteps.filter((step) => step.target !== "[data-tour='modify']");
 
     const isGenerateDisabled = prompt.length > MAX_PROMPT_LENGTH;
     const isModifyBusy = status === "submitted" || status === "processing";
@@ -243,6 +317,13 @@ export default function Home() {
                     />
 
                     <nav className="relative flex items-center gap-6 text-[15px] text-white/90">
+                        <button
+                            type="button"
+                            onClick={() => setIsTourOpen(true)}
+                            className="text-sm font-medium text-white/75 transition hover:text-[#ff8a2c]"
+                        >
+                            Walkthrough
+                        </button>
                         <a
                             href="https://www.scailab.se/"
                             target="_blank"
@@ -330,14 +411,20 @@ export default function Home() {
             </header>
 
             <div className="px-8 py-8 xl:px-12">
-                <section className="grid grid-cols-1 gap-8 xl:grid-cols-[360px_minmax(0,1fr)_420px]">
-                    <aside className="rounded-[24px] border border-white/10 bg-[#0b1020]/50 p-4 shadow-inner">
+                <section className="grid grid-cols-1 items-start gap-8 xl:grid-cols-[360px_minmax(0,1fr)_420px]">
+                    <aside
+                        data-tour="parameters"
+                        className="self-start rounded-[24px] border border-white/10 bg-[#0b1020]/50 p-4 shadow-inner"
+                    >
                         <ParameterPanel value={parameters} onChange={setParameters} />
                     </aside>
 
                     <section className="min-w-0">
                         <div className="rounded-[24px] border border-white/10 bg-[#0b1020]/50 p-5 shadow-inner">
-                            <div className="relative overflow-hidden rounded-[20px] bg-[radial-gradient(circle_at_top,rgba(70,80,255,0.12),transparent_40%),#091028]">
+                            <div
+                                data-tour="preview"
+                                className="relative overflow-hidden rounded-[20px] bg-[radial-gradient(circle_at_top,rgba(70,80,255,0.12),transparent_40%),#091028]"
+                            >
                                 <div className="absolute left-1/2 top-6 z-10 -translate-x-1/2 rounded-xl border border-white/10 bg-[#2b2d42]/80 px-5 py-3 text-sm text-white/80">
                                     {status === "submitted"
                                         ? "Submitting..."
@@ -363,7 +450,7 @@ export default function Home() {
                                 )}
                             </div>
 
-                            <div className="mt-5">
+                            <div data-tour="examples" className="mt-5">
                                 <button
                                     onClick={() => setShowExamples((prev) => !prev)}
                                     className="rounded-xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-medium text-white/85 transition hover:border-[#ff8a2c]/60 hover:bg-white/[0.07]"
@@ -399,7 +486,7 @@ export default function Home() {
                         </div>
                     </section>
 
-                    <aside className="rounded-[24px] border border-white/10 bg-[#0b1020]/50 p-5 shadow-inner sm:p-6">
+                    <aside className="self-start rounded-[24px] border border-white/10 bg-[#0b1020]/50 p-5 shadow-inner sm:p-6">
                         <div>
                             <p className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-[#ff8a2c]">
                                 Synthetic assets, real workflow
@@ -415,18 +502,37 @@ export default function Home() {
                         </div>
 
                         <div className="mt-8 rounded-[26px] border border-white/5 bg-[#0b1020]/70 p-5 shadow-inner sm:p-6">
-                            <ImportAssetPanel
-                                key={assetResetSignal}
-                                isLocked={!user}
-                                lockedMessage="Please log in before importing a 3D asset."
-                                onAssetSelected={handleLocalAssetSelected}
-                                onUseAsset={handleUseAsset}
-                            />
+                            <div data-tour="import">
+                                <ImportAssetPanel
+                                    key={assetResetSignal}
+                                    isLocked={!user}
+                                    lockedMessage="Please log in before importing a 3D asset."
+                                    onAssetSelected={handleLocalAssetSelected}
+                                    onUseAsset={handleUseAsset}
+                                />
+                            </div>
 
-                            <div>
-                                <label htmlFor="prompt" className="sr-only">
-                                    Prompt
-                                </label>
+                            <section
+                                data-tour="prompt"
+                                className="mt-6 rounded-[18px] border border-white/10 bg-[#11131f]/70 px-5 py-4"
+                            >
+                                <div className="flex min-h-[44px] items-center justify-between gap-4">
+                                    <div className="min-w-0 flex-1">
+                                        <label
+                                            htmlFor="prompt"
+                                            className="text-xs font-semibold uppercase tracking-[0.18em] text-[#ff8a2c]"
+                                        >
+                                            Prompt
+                                        </label>
+                                        <h2 className="mt-1 truncate text-lg font-semibold text-white">
+                                            Describe a 3D model
+                                        </h2>
+                                    </div>
+                                    <span className="shrink-0 text-xs text-white/35">
+                                        {prompt.length}/{MAX_PROMPT_LENGTH}
+                                    </span>
+                                </div>
+
                                 <input
                                     id="prompt"
                                     type="text"
@@ -437,10 +543,10 @@ export default function Home() {
                                             setErrorMessage(null);
                                         }
                                     }}
-                                    placeholder="Describe the 3D model..."
+                                    placeholder={promptExamples[exampleIndex]}
                                     maxLength={MAX_PROMPT_LENGTH}
                                     disabled={status === "submitted" || status === "processing"}
-                                    className="mt-6 w-full rounded-[18px] border border-white/10 bg-[#11131f]/80 px-5 py-4 text-white outline-none focus:border-[#ff8a2c]"
+                                    className="mt-4 w-full rounded-[18px] border border-white/10 bg-[#0f111a] px-5 py-4 text-white outline-none focus:border-[#ff8a2c]"
                                 />
 
                                 {prompt.length > MAX_PROMPT_LENGTH && (
@@ -449,12 +555,42 @@ export default function Home() {
                                     </p>
                                 )}
 
-                                <p className="mt-2 text-xs text-white/35">
-                                    {prompt.length}/{MAX_PROMPT_LENGTH}
-                                </p>
-                            </div>
+                                <div className="mt-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPromptExamples((prev) => !prev)}
+                                        className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-xs font-medium text-white/75 transition hover:border-[#ff8a2c]/60 hover:bg-white/[0.07] hover:text-white"
+                                    >
+                                        {showPromptExamples ? "Hide prompt examples" : "Show prompt examples"}
+                                    </button>
 
-                            <div className="mt-6">
+                                    {showPromptExamples && (
+                                        <div className="mt-3 rounded-2xl border border-white/10 bg-[#0f1320]/95 p-4 shadow-2xl backdrop-blur-xl">
+                                            <div className="mb-3 text-sm font-semibold text-white">
+                                                Prompt examples
+                                            </div>
+                                            <div className="space-y-2">
+                                                {promptExamples.map((example) => (
+                                                    <button
+                                                        key={example}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setPrompt(example);
+                                                            setShowPromptExamples(false);
+                                                        }}
+                                                        disabled={status === "submitted" || status === "processing"}
+                                                        className="w-full rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3 text-left text-sm text-white/75 transition hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-50"
+                                                    >
+                                                        {example}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </section>
+
+                            <div data-tour="generate" className="mt-6">
                                 <GenerateButton
                                     disabled={isGenerateDisabled}
                                     onGenerateStart={clearLocalAsset}
@@ -512,7 +648,10 @@ export default function Home() {
                                     )}
 
                                     {modifyTarget && (
-                                        <div className="rounded-xl border border-[#ff8a2c] bg-[#0b1020]/50 p-5">
+                                        <div
+                                            data-tour="modify"
+                                            className="rounded-xl border border-[#ff8a2c] bg-[#0b1020]/50 p-5"
+                                        >
                                             <p className="mb-2 text-sm font-semibold uppercase text-[#ff8a2c]">
                                                 Modify target
                                             </p>
@@ -620,6 +759,12 @@ export default function Home() {
                     onCloseAction={() => setAuthModal(null)}
                 />
             )}
+
+            <GuidedTour
+                steps={activeTourSteps}
+                isOpen={isTourOpen}
+                onClose={closeTour}
+            />
         </main>
     );
 }
