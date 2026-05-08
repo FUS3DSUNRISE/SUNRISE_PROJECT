@@ -6,230 +6,451 @@ AI-powered platform for generating and interacting with 3D assets using natural 
 
 ## Overview
 
-SUNRISE is a web-based system that enables users to generate, preview, and refine 3D models from simple text prompts.
+SUNRISE is a web-based system that enables users to generate, preview, refine, and modify 3D models from simple text prompts.
 
 The platform combines:
 - Large Language Models (LLMs) for understanding user intent
 - Blender (`bpy`) for procedural 3D generation
 - A modern web interface for interaction and visualization
+- PostgreSQL for persistent storage and shared collaboration
+
+---
+
+## Features
+
+- AI-powered 3D generation from text prompts
+- Blender Python (`bpy`) procedural asset generation
+- Asset refinement and modification workflow
+- Prompt versioning system
+- Authentication and user access control
+- Shared PostgreSQL database
+- Feedback and analytics system
+- Power BI export support
+- Celery asynchronous processing
+- Modular LLM provider architecture
+- Benchmarking and evaluation tools
+
+---
+
+## Tech Stack
+
+### Backend
+- Flask
+- Flask-SQLAlchemy
+- Flask-Migrate
+- Celery
+- Redis
+- PostgreSQL
+
+### Frontend
+- Next.js
+- React
+- TypeScript
+
+### AI & 3D
+- Groq API / LLM
+- Blender (`bpy`)
+- GLTF / GLB export
 
 ---
 
 ## Architecture
 
-The system follows a modular, layered architecture:
+The system follows a modular layered architecture:
 
-`User → Frontend → Backend → LLM → bpy Script → Blender → 3D Asset → Preview`
+```text
+User
+  ↓
+Frontend (Next.js)
+  ↓
+Backend API (Flask)
+  ↓
+Celery Task Queue
+  ↓
+LLM Service Layer
+  ↓
+Validation Layer
+  ↓
+Blender Execution
+  ↓
+GLB Export
+  ↓
+PostgreSQL Storage
+```
 
 ### Components
 
-- **Frontend** — user interface, preview, interaction
-- **Backend** — orchestration, API, processing
-- **LLM Layer** — prompt interpretation and code generation
-- **Validation Layer** — script safety and correctness
-- **Blender Engine** — 3D asset generation
-- **Storage (future)** — history and reproducibility
+- Frontend — user interface, interaction and preview
+- Backend — orchestration, APIs and processing
+- LLM Layer — prompt interpretation and code generation
+- Validation Layer — script validation and safety checks
+- Blender Engine — procedural 3D generation
+- PostgreSQL Database — persistent storage for users, prompts, feedback and analytics
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```text
 SUNRISE_PROJECT/
-├── app/                     # Backend (Flask)
-├── config.py
-├── run.py
-├── requirements.txt
+├── app/
+│   ├── models/
+│   ├── routes/
+│   ├── services/
+│   ├── tasks/
+│   ├── static/
+│   ├── extensions.py
+│   ├── celery_app.py
+│   └── __init__.py
 │
-├── frontend/                # Frontend (Next.js)
+├── frontend/
 │   ├── app/
 │   ├── components/
-│   ├── hooks/
 │   ├── public/
 │   ├── services/
 │   ├── state/
-│   ├── types/
 │   └── package.json
 │
+├── migrations/
+├── tests/
+├── config.py
+├── requirements.txt
+├── run.py
+├── worker.py
 └── README.md
+```
 
-Local Setup & Execution Guide
+---
 
-This guide explains how to configure and run the End-to-End generation pipeline locally.
+# Local Setup & Execution Guide
 
-### Requirements (Before you start)
+This guide explains how to configure and run the full generation pipeline locally.
 
-  * **Python (3.10+)**: ⚠️ **IMPORTANT:** During installation, you must check the box `"Add Python.exe to PATH"`.
-  * **Node.js (v20+)**: Required for the frontend.
-  * **Blender**: Install via [Steam](https://store.steampowered.com/app/365670/Blender/) or the [official website](https://www.blender.org/download/).
-  * **Redis**: You will need `redis-server.exe` or `memurai.exe` running.
+---
 
-> 🛑 **TERMINAL RULE:** If you don't see `(venv)` at the start of your line in the terminal, you must type `cmd` and press **Enter** before activating the environment\!
+## Requirements
 
------
+Before starting, install:
 
-### PART 1: FIRST-TIME SETUP (DO THIS ONLY ONCE)
+### Required Software
+- Python 3.10+
+- Node.js v20+
+- PostgreSQL
+- Redis
+- Blender
 
-#### 1\. Configure Environment Variables (`.env`) & Get API Key
+### Blender
+Download Blender from:
+- https://www.blender.org/download/
 
-The AI needs an API key to work. This key is stored in a special hidden file.
+### PostgreSQL
+Download PostgreSQL from:
+- https://www.postgresql.org/download/
 
-**Step A: Get your personal Groq API Key**
+### Redis
+You may use:
+- Redis Server
+- Memurai
+- Docker Redis container
 
-1.  Go to [console.groq.com](https://console.groq.com) and log in (using Google or GitHub is the fastest way).
-2.  Look at the top right corner of the screen and click on the three horizontal lines (hamburger menu).
-3.  From the menu, select **API Keys**.
-4.  In the top right corner of the new page, click the **Create API Key** button. Give it a name (e.g., "Sunrise Local").
-5.  ⚠️ **CRITICAL:** Copy the key immediately\! (It usually starts with `gsk_...`). The system will only show it to you ONCE. If you close the pop-up without copying it, you will lose it forever. Save it somewhere safe.
+---
 
-**Step B: Create the `.env` file**
+# PART 1 — FIRST TIME SETUP
 
-1.  In the root folder (`SUNRISE_PROJECT`), find the file named `.env.example`.
-2.  Copy this file and rename the copy to exactly `.env` (ensure there is no `.example` or `.txt` at the end).
-3.  Open this new `.env` file with VS Code or any text editor.
-4.  Find the `LLM_API_KEY=` line and paste your copied key right after the `=` sign (no spaces).
+## 1. Clone Repository
 
-Example of what your `.env` should look like:
+```bash
+git clone <repository-url>
+cd SUNRISE_PROJECT
+```
+
+---
+
+## 2. Create Python Virtual Environment
+
+```bash
+python -m venv venv
+```
+
+Activate environment:
+
+### Windows
+```bash
+venv\Scripts\activate
+```
+
+### Linux / Mac
+```bash
+source venv/bin/activate
+```
+
+---
+
+## 3. Install Backend Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+---
+
+## 4. Configure PostgreSQL
+
+If you are hosting the shared database, create the PostgreSQL database:
+
+```sql
+CREATE DATABASE bip_shared_db;
+```
+
+If you are a team member using the shared database:
+- do not create a local database
+- ask the database host for the shared `DATABASE_URL`
+
+---
+
+## 5. Configure Environment Variables
+
+Copy `.env.example` into `.env`.
+
+Example configuration:
 
 ```env
-LLM_API_KEY=gsk_your_actual_long_key_here
+SECRET_KEY=your_secret_key
+
+DATABASE_URL=postgresql://postgres:password@HOST_IP:5432/bip_shared_db
+
+LLM_API_KEY=your_groq_api_key
+
+LLM_PROVIDER=groq
+LLM_TEMPERATURE=0.2
+
+CELERY_BROKER_URL=redis://localhost:6379/0
+CELERY_RESULT_BACKEND=redis://localhost:6379/0
 ```
 
-#### 2\. Initialize Backend & Database
+---
 
-Open a **NEW** terminal. Type `cmd` and press **Enter**. Then run the following commands line by line:
+## 6. Run Database Migrations
 
-```bat
-:: 1. Create virtual environment
-python -m venv venv
-
-:: 2. Activate it
-venv\Scripts\activate
-
-:: 3. Install dependencies & fix conflicts
-pip install -r requirements.txt
-
-:: 4. Create Database and Test User
-python create_db.py
+```bash
+flask db upgrade
 ```
 
-#### 3\. Initialize Frontend
+---
 
-Open a **NEW** terminal. Type `cmd` and press **Enter**. Then run:
+## 7. Install Frontend Dependencies
 
-```bat
+```bash
 cd frontend
 npm install
 ```
 
------
+---
 
-### PART 2: UPDATING
+# PART 2 — DAILY RUN
 
-*(Do this ONLY when you pull new code from GitHub)*
+The application requires:
+- Backend server
+- Celery worker
+- Frontend server
+- Redis server
 
-**Step A: Update Backend**
-Open a **NEW** terminal. Type `cmd` and press **Enter**.
+All services must run simultaneously.
 
-```bat
-venv\Scripts\activate
-pip install -r requirements.txt
+---
+
+## Step 0 — Start Redis
+
+### Option A — Redis Installed Locally
+Ensure Redis service is running.
+
+### Option B — Docker Redis
+
+```bash
+docker run -p 6379:6379 -d redis
 ```
 
-**Step B: Update Frontend**
-Open a **NEW** terminal. Type `cmd` and press **Enter**.
+---
 
-```bat
-cd frontend
-npm install
-```
+## Terminal 1 — Backend Server
 
------
-
-### PART 3: DAILY RUN
-
-*(Do this EVERY TIME you want to use the app)*
-
-**Order matters\!** You will need 3 separate terminals running simultaneously in VS Code, plus ensuring Redis is running.
-
-#### Step 0: Start Redis
-
-Depending on how you installed Redis, choose ONE option:
-
-  * **Option A: Installed as an Application / Service (Memurai or MSI Installer)**
-    Redis likely starts automatically in the background when you turn on your PC. You don't need to do anything. *(If Celery fails later, check Task Manager to see if the service is running).*
-  * **Option B: Downloaded as a Folder (Portable Version)**
-    Open File Explorer, navigate to that folder, and double-click `redis-server.exe`. **Keep that window open\!**
-  * **Option C: Using Docker (Recommended if installed)**
-    Open any terminal outside of VS Code and run:
-    ```bat
-    docker run -p 6379:6379 -d redis
-    ```
-
-#### Terminal \#1: Backend Server (Flask)
-
-Open a **NEW** terminal. Type `cmd` and press **Enter**.
-
-```bat
+```bash
 venv\Scripts\activate
 python run.py
 ```
 
-> ✅ **Success:** Should say `* Running on http://127.0.0.1:5000`.
+Backend runs on:
 
-#### Terminal \#2: Worker (Celery)
+```text
+http://127.0.0.1:5000
+```
 
-Open a **NEW** terminal. Type `cmd` and press **Enter**.
+---
 
-```bat
+## Terminal 2 — Celery Worker
+
+```bash
 venv\Scripts\activate
 celery -A worker.celery worker --loglevel=info --pool=solo
 ```
 
-> ✅ **Success:** Should show the Celery logo and `[INFO/MainProcess] celery@... ready`.
+---
 
-#### Terminal \#3: Frontend (Next.js)
+## Terminal 3 — Frontend
 
-Open a **NEW** terminal. Type `cmd` and press **Enter**.
-
-```bat
+```bash
 cd frontend
 npm run dev
 ```
 
-> ✅ **Success:** Should say `✓ Ready in ...ms` and `http://localhost:3000`.
+Frontend runs on:
 
------
+```text
+http://localhost:3000
+```
 
-### Final Step: Testing
+---
 
-1.  Go to [http://localhost:3000](https://www.google.com/search?q=http://localhost:3000) in your browser.
-2.  Type a prompt (e.g., "A wooden table") and click **Generate**.
-3.  Check **Terminal \#2 (Celery)**: you should see Blender starting.
+# Shared Database
 
------
+The project uses a shared PostgreSQL database architecture.
 
-### Troubleshooting
+This allows:
+- shared prompt history
+- synchronized generated assets
+- centralized feedback analytics
+- multi-user support
+- deployment-ready infrastructure
 
-  * **Terminal errors:** If activation fails, always make sure you typed `cmd` first.
-  * **CORS Error:** Make sure `BASE_URL` in `frontend/services/api.ts` matches your browser address (`localhost` or `127.0.0.1`).
-  * **Wrong Folder Error:** If a command says "file not found" or similar, make sure you opened a new terminal so it starts in the project's root folder.
-  * **Redis/Celery Error:** If Terminal \#2 says "Connection Error" or "Consumer: Cannot connect", your Redis server is not running. Revisit Phase 3, Step 0.
+Each team member must configure the same `DATABASE_URL`.
 
------
+Example:
 
-## Benchmarking Methodology
-This module provides a systematic approach to evaluating the quality of generated 3D models. The process is divided into two main stages: defining test cases and scoring the results.
-1. Defining Test Cases (TEST_PROMPTS)The TEST_PROMPTS dictionary is where we register reference tasks. Each task is assigned a difficulty level, allowing us to analyze performance bottlenecks across different categories.
+```env
+DATABASE_URL=postgresql://postgres:password@HOST_IP:5432/bip_shared_db
+```
 
-2. Evaluation Criteria (build_result)
-Each generation is scored on a scale of 0 to 10 based on the following technical metrics:
-Compliance        How well the model matches the text prompt (color, object type,etc.).Stability         Absence of "artifacts," floating parts, or disconnected meshes.
-Geometry Quality  Mesh topology quality, edge flow, and correct normals.
-Materials         Accuracy and quality of applied textures and shaders.
-Blender Success   Reliability of the model when imported and processed within Blender.Final Export      Practicality of the final file for use in external engines.
+---
 
-How to Add a New Test:
-1. Add a new TestPrompt object to the appropriate category in TEST_PROMPTS.
-2. Once the model is generated, add a scoring entry in build_sample_report() (or load it via JSON).
-3. Run run_dashboard.py to view the updated charts and the new overall average score
+# Testing
+
+Go to:
+
+```text
+http://localhost:3000
+```
+
+Example prompt:
+
+```text
+A wooden table with metal legs
+```
+
+Check the Celery terminal to verify:
+- task processing
+- Blender execution
+- GLB export generation
+
+---
+
+# Benchmarking Methodology
+
+The benchmarking module evaluates generated 3D assets using predefined test prompts and scoring metrics.
+
+## Evaluation Categories
+
+Each generated asset is scored from 0 to 10 using:
+
+| Metric | Description |
+|---|---|
+| Compliance | Match between prompt and generated asset |
+| Stability | Absence of artifacts or disconnected meshes |
+| Geometry Quality | Mesh topology and normals |
+| Materials | Quality and correctness of shaders/materials |
+| Blender Success | Reliability during Blender execution |
+| Final Export | Usability of exported GLB/GLTF |
+
+---
+
+## Adding a New Benchmark Test
+
+### 1. Add a Test Prompt
+
+Register a new `TestPrompt` inside `TEST_PROMPTS`.
+
+### 2. Add Evaluation Scores
+
+Add scoring data inside:
+- `build_sample_report()`
+- or external JSON evaluation files
+
+### 3. Run Dashboard
+
+```bash
+python run_dashboard.py
+```
+
+---
+
+# Troubleshooting
+
+## Redis Connection Error
+
+If Celery cannot connect:
+
+```text
+Connection refused
+Cannot connect to Redis
+```
+
+Ensure Redis server is running.
+
+---
+
+## CORS Errors
+
+Verify frontend API URL matches:
+- localhost
+- or 127.0.0.1
+
+---
+
+## PostgreSQL Connection Error
+
+Verify:
+- PostgreSQL service is running
+- database exists
+- `.env` DATABASE_URL is correct
+
+---
+
+## Migration Issues
+
+If migrations fail:
+
+```bash
+flask db stamp head
+flask db upgrade
+```
+
+---
+
+# Security Notes
+
+- Never commit `.env`
+- Never expose API keys publicly
+- Never share PostgreSQL credentials
+- Use environment variables for all secrets
+
+---
+
+# Future Improvements
+
+
+---
+
+# Authors
+
+SUNRISE Project Team
+
+International collaborative project focused on AI-assisted 3D generation systems.

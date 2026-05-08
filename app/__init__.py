@@ -2,13 +2,13 @@ from flask import Flask
 from app.extensions import db, migrate
 from app.routes.prompts import prompts_bp
 from app.routes.auth import auth_bp
+from app.routes.assets import assets_bp
 from flask_cors import CORS
-
 
 from app.models.user import User
 from app.models.prompt import PromptRequest
 from app.models.feedback import GenerationFeedback
-
+from app.models.imported_asset import ImportedAsset
 
 
 
@@ -32,6 +32,7 @@ def create_app():
 
     app.register_blueprint(prompts_bp, url_prefix="/prompts")
     app.register_blueprint(auth_bp, url_prefix="/auth")
+    app.register_blueprint(assets_bp, url_prefix="/assets")
 
 
     @app.route("/")
