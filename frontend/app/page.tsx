@@ -25,6 +25,23 @@ const demoModels = [
 
 const MAX_PROMPT_LENGTH = 120;
 
+type ModifyTarget =
+    | {
+        kind: "generated";
+        id: number;
+        name: string;
+    }
+    | {
+        kind: "local";
+        name: string;
+    };
+
+function getModelFileName(path: string | null | undefined) {
+    if (!path) return "Generated model";
+
+    return decodeURIComponent(path.split(/[\\/]/).pop() || "Generated model");
+}
+
 export default function Home() {
     const {
         status,
@@ -49,6 +66,8 @@ export default function Home() {
     const [showUserMenu, setShowUserMenu] = useState(false);
     const [previewBlobUrl, setPreviewBlobUrl] = useState<string | null>(null);
     const [localAsset, setLocalAsset] = useState<(LocalAsset & { previewUrl: string }) | null>(null);
+    const [importedAssetName, setImportedAssetName] = useState<string | null>(null);
+    const [assetResetSignal, setAssetResetSignal] = useState(0);
 
     useEffect(() => {
         let objectUrl: string | null = null;
@@ -84,6 +103,22 @@ export default function Home() {
     const previewModelPath = activeLocalAsset?.previewUrl ?? previewBlobUrl ?? selectedModel;
     const previewModelType = activeLocalAsset?.type;
     const userInitial = user?.email?.[0]?.toUpperCase() ?? "U";
+    const generatedModelName =
+        result?.id === 999
+            ? demoModels.find((model) => model.path === result.result_path)?.label ?? getModelFileName(result.result_path)
+            : getModelFileName(result?.result_path);
+    const modifyTarget: ModifyTarget | null = activeLocalAsset
+        ? importedAssetName
+            ? { kind: "local", name: importedAssetName }
+            : null
+        : status === "success" && result
+            ? { kind: "generated", id: result.id, name: generatedModelName }
+            : null;
+    const canModifyCurrentTarget = Boolean(modifyTarget);
+    const shouldShowResultPanel =
+        status === "error" ||
+        Boolean(modifyTarget) ||
+        (status === "success" && result && !activeLocalAsset);
 
     const isGenerateDisabled = prompt.length > MAX_PROMPT_LENGTH;
     const isModifyBusy = status === "submitted" || status === "processing";
@@ -101,7 +136,19 @@ export default function Home() {
     });
 
     const handleModify = async () => {
-        if (!result?.id || !modifyCommand.trim()) return;
+        if (!modifyCommand.trim()) return;
+
+        if (!canModifyCurrentTarget || !modifyTarget) return;
+
+        if (modifyTarget.kind === "local" || modifyTarget.id === 999) {
+            console.log("Modify preview model", {
+                file: modifyTarget.name,
+                command: modifyCommand,
+            });
+            setModifyCommand("");
+            setErrorMessage(null);
+            return;
+        }
 
         try {
             const store = useGenerationStore.getState();
@@ -113,7 +160,7 @@ export default function Home() {
                 parameters: getFormattedParameters(),
             };
 
-            const newResult = await modifyModel(result.id, payload, () => {
+            const newResult = await modifyModel(modifyTarget.id, payload, () => {
                 store.setStatus("processing");
             });
 
@@ -144,9 +191,28 @@ export default function Home() {
                 previewUrl,
             };
         });
+        setImportedAssetName(null);
+        setModifyCommand("");
+    };
+
+    const clearLocalAsset = () => {
+        setLocalAsset((currentAsset) => {
+            if (currentAsset?.previewUrl) {
+                URL.revokeObjectURL(currentAsset.previewUrl);
+            }
+
+            return null;
+        });
+        setImportedAssetName(null);
+        setAssetResetSignal((current) => current + 1);
     };
 
     const handleUseAsset = (asset: LocalAsset) => {
+        if (activeLocalAsset) {
+            setImportedAssetName(activeLocalAsset.name);
+            setErrorMessage(null);
+        }
+
         console.log("Use this asset", {
             name: asset.name,
             type: asset.type,
@@ -284,7 +350,7 @@ export default function Home() {
                                     <PreviewCanvas modelPath={previewModelPath} modelType={previewModelType} />
                                 </div>
 
-                                {status === "success" && result?.result_path && (
+                                {status === "success" && result?.result_path && !activeLocalAsset && (
                                     <FeedbackWidget
                                         key={result.id}
                                         promptId={result.id}
@@ -350,6 +416,7 @@ export default function Home() {
 
                         <div className="mt-8 rounded-[26px] border border-white/5 bg-[#0b1020]/70 p-5 shadow-inner sm:p-6">
                             <ImportAssetPanel
+                                key={assetResetSignal}
                                 isLocked={!user}
                                 lockedMessage="Please log in before importing a 3D asset."
                                 onAssetSelected={handleLocalAssetSelected}
@@ -388,12 +455,15 @@ export default function Home() {
                             </div>
 
                             <div className="mt-6">
-                                <GenerateButton disabled={isGenerateDisabled} />
+                                <GenerateButton
+                                    disabled={isGenerateDisabled}
+                                    onGenerateStart={clearLocalAsset}
+                                />
                             </div>
 
-                            {(status === "success" && result) || status === "error" ? (
+                            {shouldShowResultPanel ? (
                                 <div className="mt-8 border-t border-white/10 pt-8">
-                                    {status === "success" && result && (
+                                    {status === "success" && result && !activeLocalAsset && (
                                         <div className="space-y-6">
                                             <div className="rounded-[20px] border border-white/10 bg-[#11131f]/70 px-6 py-6 text-center">
                                                 {result.result_path ? (
@@ -438,28 +508,45 @@ export default function Home() {
                                                     </p>
                                                 </div>
                                             </div>
+                                        </div>
+                                    )}
 
-                                            <div className="rounded-xl border border-[#ff8a2c] bg-[#0b1020]/50 p-5">
-                                                <p className="mb-3 text-sm font-semibold uppercase text-[#ff8a2c]">
-                                                    Modify this model
+                                    {modifyTarget && (
+                                        <div className="rounded-xl border border-[#ff8a2c] bg-[#0b1020]/50 p-5">
+                                            <p className="mb-2 text-sm font-semibold uppercase text-[#ff8a2c]">
+                                                Modify target
+                                            </p>
+                                            <div className="mb-4 rounded-lg border border-white/10 bg-[#0f111a] px-4 py-3">
+                                                <p className="text-xs uppercase tracking-[0.14em] text-white/35">
+                                                    Current file
                                                 </p>
-                                                <div className="flex flex-col gap-3 sm:flex-row">
-                                                    <input
-                                                        type="text"
-                                                        value={modifyCommand}
-                                                        onChange={(e) => setModifyCommand(e.target.value)}
-                                                        placeholder="e.g., Make it taller..."
-                                                        disabled={isModifyBusy}
-                                                        className="min-w-0 flex-1 rounded-lg border border-white/10 bg-[#0f111a] px-4 py-3 text-sm text-white outline-none focus:border-[#ff8a2c]"
-                                                    />
-                                                    <button
-                                                        onClick={handleModify}
-                                                        disabled={!modifyCommand.trim() || isModifyBusy}
-                                                        className="shrink-0 rounded-lg bg-[#ff8a2c] px-6 py-3 text-sm font-bold text-black transition hover:bg-[#ff9b4d] disabled:opacity-50"
-                                                    >
-                                                        {isModifyBusy ? "Modifying..." : "Modify"}
-                                                    </button>
-                                                </div>
+                                                <p className="mt-1 truncate text-sm font-medium text-white">
+                                                    {modifyTarget.name}
+                                                </p>
+                                                <p className="mt-2 text-xs text-white/45">
+                                                    {modifyTarget.kind === "local"
+                                                        ? "This imported file will be modified."
+                                                        : modifyTarget.id === 999
+                                                            ? "This preview file will be modified."
+                                                            : "This generated file will be modified."}
+                                                </p>
+                                            </div>
+                                            <div className="flex flex-col gap-3 sm:flex-row">
+                                                <input
+                                                    type="text"
+                                                    value={modifyCommand}
+                                                    onChange={(e) => setModifyCommand(e.target.value)}
+                                                    placeholder="e.g., Make it taller..."
+                                                    disabled={isModifyBusy}
+                                                    className="min-w-0 flex-1 rounded-lg border border-white/10 bg-[#0f111a] px-4 py-3 text-sm text-white outline-none focus:border-[#ff8a2c]"
+                                                />
+                                                <button
+                                                    onClick={handleModify}
+                                                    disabled={!modifyCommand.trim() || isModifyBusy || !canModifyCurrentTarget}
+                                                    className="shrink-0 rounded-lg bg-[#ff8a2c] px-6 py-3 text-sm font-bold text-black transition hover:bg-[#ff9b4d] disabled:cursor-not-allowed disabled:opacity-50"
+                                                >
+                                                    {isModifyBusy ? "Modifying..." : "Modify"}
+                                                </button>
                                             </div>
                                         </div>
                                     )}
@@ -479,6 +566,7 @@ export default function Home() {
                                 <div className="flex flex-wrap justify-center gap-4 sm:gap-6">
                                     <button
                                         onClick={() => {
+                                            clearLocalAsset();
                                             const store = useGenerationStore.getState();
                                             store.setResult({
                                                 id: 999,
@@ -494,13 +582,17 @@ export default function Home() {
                                         [Test Success]
                                     </button>
                                     <button
-                                        onClick={() => useGenerationStore.getState().setStatus("error")}
+                                        onClick={() => {
+                                            clearLocalAsset();
+                                            useGenerationStore.getState().setStatus("error");
+                                        }}
                                         className="text-xs text-red-500/50 hover:text-red-400"
                                     >
                                         [Test Error]
                                     </button>
                                     <button
                                         onClick={() => {
+                                            clearLocalAsset();
                                             reset();
                                             setPrompt("");
                                             setErrorMessage(null);

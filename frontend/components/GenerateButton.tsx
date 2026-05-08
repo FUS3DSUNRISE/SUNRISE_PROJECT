@@ -7,12 +7,13 @@ import { useAuthStore } from "@/state/authStore";
 
 type GenerateButtonProps = {
     disabled?: boolean;
+    onGenerateStart?: () => void;
 };
 
 const MAX_PROMPT_LENGTH = 120;
 const FORBIDDEN_CHARACTERS_REGEX = /[<>[\]{}]/;
 
-export default function GenerateButton({ disabled = false }: GenerateButtonProps) {
+export default function GenerateButton({ disabled = false, onGenerateStart }: GenerateButtonProps) {
     const prompt = useGenerationStore((s) => s.prompt);
     const parameters = useGenerationStore((s) => s.parameters);
     const status = useGenerationStore((s) => s.status);
@@ -70,6 +71,7 @@ export default function GenerateButton({ disabled = false }: GenerateButtonProps
                 parameters: getFormattedParameters(),
             };
 
+            onGenerateStart?.();
             setStatus("submitted");
             await new Promise((resolve) => setTimeout(resolve, 500));
 
