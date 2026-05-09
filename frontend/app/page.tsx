@@ -111,6 +111,7 @@ type ModifyTarget =
 type ActiveLocalAsset = LocalAsset & {
     previewUrl: string;
     importedAssetId?: number;
+    importedAssetPath?: string;
     metadata?: AssetMetadata;
 };
 
@@ -745,6 +746,7 @@ export default function Home() {
                 setAssetMetadata(null);
                 setAssetInterpretationError(null);
                 setIsAssetMetadataOpen(false);
+                store.setImportedAsset(null);
                 setAssetResetSignal((current) => current + 1);
                 store.setResult(newResult);
                 store.setStatus("success");
@@ -829,6 +831,7 @@ export default function Home() {
         setBusyModifyTarget(null);
         setShowModifiedObjectOnly(false);
         setModifyCommand("");
+        useGenerationStore.getState().setImportedAsset(null);
     };
 
     const handleAssetImported = (
@@ -845,6 +848,7 @@ export default function Home() {
                 ...fallbackAsset,
                 name: asset.name,
                 importedAssetId: importedAsset.id,
+                importedAssetPath: importedAsset.file_path,
                 metadata: importedAsset.metadata,
             };
         });
@@ -855,6 +859,13 @@ export default function Home() {
         setBusyModifyTarget(null);
         setShowModifiedObjectOnly(false);
         setParameters(deriveParametersFromAssetMetadata(importedAsset.metadata, parameters));
+        useGenerationStore.getState().setImportedAsset({
+            id: importedAsset.id,
+            filePath: importedAsset.file_path,
+            filename: importedAsset.filename,
+            originalFilename: importedAsset.original_filename,
+            fileType: importedAsset.file_type,
+        });
         useGenerationStore.getState().setStatus("idle");
         setErrorMessage(null);
     };
@@ -866,6 +877,7 @@ export default function Home() {
         setIsAssetMetadataOpen(true);
         setBusyModifyTarget(null);
         setShowModifiedObjectOnly(false);
+        useGenerationStore.getState().setImportedAsset(null);
         useGenerationStore.getState().setStatus("error");
         setErrorMessage("Cannot interpret asset. Please check the file format or integrity.");
     };
@@ -885,6 +897,7 @@ export default function Home() {
         setBusyModifyTarget(null);
         setShowModifiedObjectOnly(false);
         setAssetResetSignal((current) => current + 1);
+        useGenerationStore.getState().setImportedAsset(null);
     };
 
     const handleUseAsset = (asset: LocalAsset) => {
@@ -903,6 +916,8 @@ export default function Home() {
             size: asset.size,
             lastModified: asset.lastModified,
             previewUrl: activeLocalAsset?.previewUrl ?? null,
+            importedAssetId: activeLocalAsset?.importedAssetId ?? null,
+            importedAssetPath: activeLocalAsset?.importedAssetPath ?? null,
             file: asset.file,
         });
     };

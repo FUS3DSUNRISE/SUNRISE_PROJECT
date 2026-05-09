@@ -59,6 +59,7 @@ export default function ImportAssetPanel({
     const [isDragging, setIsDragging] = useState(false);
     const [selectedAsset, setSelectedAsset] = useState<LocalAsset | null>(null);
     const [uploadStatus, setUploadStatus] = useState<UploadStatus>("idle");
+    const [uploadProgress, setUploadProgress] = useState(0);
     const [validationMessage, setValidationMessage] = useState<string | null>(null);
 
     const handleFile = async (file: File | undefined) => {
@@ -74,6 +75,7 @@ export default function ImportAssetPanel({
         if (error) {
             setSelectedAsset(null);
             setUploadStatus("idle");
+            setUploadProgress(0);
             setValidationMessage(error);
             return;
         }
@@ -88,11 +90,15 @@ export default function ImportAssetPanel({
 
         setSelectedAsset(nextAsset);
         setUploadStatus("uploading");
+        setUploadProgress(0);
         setValidationMessage(null);
         onAssetSelected?.(nextAsset);
 
         try {
-            const importedAsset = await importAsset(file);
+            const importedAsset = await importAsset(file, {
+                onUploadProgress: setUploadProgress,
+            });
+            setUploadProgress(100);
             setUploadStatus("ready");
             onAssetImported?.(nextAsset, importedAsset);
         } catch (error) {
@@ -106,6 +112,7 @@ export default function ImportAssetPanel({
                     : "Cannot interpret asset. Please check the file format or integrity.";
 
             setUploadStatus("error");
+            setUploadProgress(0);
             setValidationMessage(message);
             onInterpretationError?.(message, metadata);
         }
@@ -127,9 +134,9 @@ export default function ImportAssetPanel({
         isLocked
             ? "Login required"
             : uploadStatus === "uploading"
-            ? "Uploading..."
+            ? `Uploading ${uploadProgress}%`
             : uploadStatus === "ready"
-                ? "Ready to import"
+                ? "Uploaded"
                 : uploadStatus === "error"
                     ? "Import failed"
                 : "No file selected";
@@ -260,6 +267,28 @@ export default function ImportAssetPanel({
                                     />
                                     Upload status: {statusLabel}
                                 </div>
+
+                                {uploadStatus === "uploading" && (
+                                    <div className="mt-3" aria-label={`Upload progress ${uploadProgress}%`}>
+                                        <div className="h-2 overflow-hidden rounded-full bg-white/10">
+                                            <div
+                                                className="h-full rounded-full bg-[#ff8a2c] transition-[width] duration-200 ease-out"
+                                                style={{ width: `${uploadProgress}%` }}
+                                            />
+                                        </div>
+                                        <div className="mt-2 text-right text-xs font-medium text-white/45">
+                                            {uploadProgress}%
+                                        </div>
+                                    </div>
+                                )}
+
+                                {uploadStatus === "ready" && (
+                                    <div className="mt-3" aria-label="Upload complete">
+                                        <div className="h-2 overflow-hidden rounded-full bg-white/10">
+                                            <div className="h-full w-full rounded-full bg-green-400" />
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             {uploadStatus === "ready" && (

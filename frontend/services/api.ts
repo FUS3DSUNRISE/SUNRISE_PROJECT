@@ -60,6 +60,14 @@ async function parseJson<T>(res: Response): Promise<T> {
     }
 }
 
+function parseJsonText<T>(text: string): T {
+    try {
+        return JSON.parse(text) as T;
+    } catch {
+        return {} as T;
+    }
+}
+
 export type FormattedParameters = {
     size: {
         width: number;
@@ -120,6 +128,14 @@ export type ImportedAssetResponse = {
     user_id: number;
     metadata: AssetMetadata;
     message?: string;
+};
+
+type ImportAssetOptions = {
+    onUploadProgress?: (progress: number) => void;
+};
+
+type ImportedAssetUploadResponse = Partial<ImportedAssetResponse> & {
+    id: number;
 };
 
 function getFileExtensionFromName(fileName: string) {
@@ -425,25 +441,89 @@ export async function modifyModel(
     return await pollPrompt(data.id, onProcessing);
 }
 
-export async function importAsset(file: File): Promise<ImportedAssetResponse> {
-    const formData = new FormData();
-    formData.append("file", file);
-
-    const res = await apiFetch("/assets/import", {
-        method: "POST",
-        credentials: "include",
-        body: formData,
-    });
-
-    const data = await parseJson<{ error?: string } & Partial<ImportedAssetResponse>>(res);
-
-    if (!res.ok || typeof data.id !== "number") {
-        const error = new Error(data.error || "Failed to import asset") as Error & {
-            status?: number;
-        };
-        error.status = res.status;
-        throw error;
+function getImportErrorMessage(status?: number, fallback?: string) {
+    if (status === 413) {
+        return "The selected file is too large. Please choose a smaller file.";
     }
+
+    if (status === 401) {
+        return "Please log in before importing a 3D asset.";
+    }
+
+    if (status === 0) {
+        return "Upload failed. Check your internet connection and try again.";
+    }
+
+    if (status && status >= 500) {
+        return "The server could not finish the upload. Please try again later.";
+    }
+
+    return fallback || "Failed to import asset";
+}
+
+function uploadAssetFile(
+    file: File,
+    onUploadProgress: (progress: number) => void = () => {}
+): Promise<ImportedAssetUploadResponse> {
+    return new Promise((resolve, reject) => {
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", `${API_BASE_URL}/assets/import`);
+        xhr.withCredentials = true;
+
+        xhr.upload.onprogress = (event) => {
+            if (!event.lengthComputable || event.total === 0) return;
+
+            const progress = Math.round((event.loaded / event.total) * 100);
+            onUploadProgress(Math.min(100, Math.max(0, progress)));
+        };
+
+        xhr.onload = () => {
+            const data = parseJsonText<{ error?: string } & Partial<ImportedAssetResponse>>(
+                xhr.responseText
+            );
+
+            if (isUnavailableStatus(xhr.status)) {
+                markBackendUnavailable();
+            }
+
+            if (xhr.status < 200 || xhr.status >= 300 || typeof data.id !== "number") {
+                const error = new Error(getImportErrorMessage(xhr.status, data.error)) as Error & {
+                    status?: number;
+                };
+                error.status = xhr.status;
+                reject(error);
+                return;
+            }
+
+            onUploadProgress(100);
+            resolve(data as ImportedAssetUploadResponse);
+        };
+
+        xhr.onerror = () => {
+            markBackendUnavailable();
+            const error = new Error(getImportErrorMessage(0)) as Error & { status?: number };
+            error.status = 0;
+            reject(error);
+        };
+
+        xhr.onabort = () => {
+            const error = new Error("Upload was cancelled.") as Error & { status?: number };
+            error.status = 0;
+            reject(error);
+        };
+
+        xhr.send(formData);
+    });
+}
+
+export async function importAsset(
+    file: File,
+    options: ImportAssetOptions = {}
+): Promise<ImportedAssetResponse> {
+    const data = await uploadAssetFile(file, options.onUploadProgress);
 
     const metadataRes = await apiFetch(`/assets/${data.id}/metadata`, {
         credentials: "include",
