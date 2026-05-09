@@ -1,12 +1,13 @@
 "use client";
 
 import type { DragEvent } from "react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { importAsset, type ImportedAssetResponse } from "@/services/api";
 
 const SUPPORTED_EXTENSIONS = [".glb", ".gltf", ".obj"] as const;
 const ACCEPTED_FILE_TYPES = SUPPORTED_EXTENSIONS.join(",");
 
-type UploadStatus = "idle" | "uploading" | "ready";
+type UploadStatus = "idle" | "uploading" | "ready" | "error";
 
 export type LocalAsset = {
     name: string;
@@ -41,6 +42,8 @@ type ImportAssetPanelProps = {
     isLocked?: boolean;
     lockedMessage?: string;
     onAssetSelected?: (asset: LocalAsset) => void;
+    onAssetImported?: (asset: LocalAsset, importedAsset: ImportedAssetResponse) => void;
+    onInterpretationError?: (message: string) => void;
     onUseAsset?: (asset: LocalAsset) => void;
 };
 
@@ -48,6 +51,8 @@ export default function ImportAssetPanel({
     isLocked = false,
     lockedMessage = "Log in to import assets.",
     onAssetSelected,
+    onAssetImported,
+    onInterpretationError,
     onUseAsset,
 }: ImportAssetPanelProps) {
     const [isExpanded, setIsExpanded] = useState(false);
@@ -56,17 +61,7 @@ export default function ImportAssetPanel({
     const [uploadStatus, setUploadStatus] = useState<UploadStatus>("idle");
     const [validationMessage, setValidationMessage] = useState<string | null>(null);
 
-    useEffect(() => {
-        if (uploadStatus !== "uploading") return;
-
-        const timeoutId = window.setTimeout(() => {
-            setUploadStatus("ready");
-        }, 1200);
-
-        return () => window.clearTimeout(timeoutId);
-    }, [uploadStatus]);
-
-    const handleFile = (file: File | undefined) => {
+    const handleFile = async (file: File | undefined) => {
         if (isLocked) {
             setValidationMessage(lockedMessage);
             return;
@@ -95,6 +90,21 @@ export default function ImportAssetPanel({
         setUploadStatus("uploading");
         setValidationMessage(null);
         onAssetSelected?.(nextAsset);
+
+        try {
+            const importedAsset = await importAsset(file);
+            setUploadStatus("ready");
+            onAssetImported?.(nextAsset, importedAsset);
+        } catch (error) {
+            const message =
+                error instanceof Error
+                    ? error.message
+                    : "Cannot interpret asset. Please check the file format or integrity.";
+
+            setUploadStatus("error");
+            setValidationMessage(message);
+            onInterpretationError?.(message);
+        }
     };
 
     const handleDrop = (event: DragEvent<HTMLLabelElement>) => {
@@ -116,6 +126,8 @@ export default function ImportAssetPanel({
             ? "Uploading..."
             : uploadStatus === "ready"
                 ? "Ready to import"
+                : uploadStatus === "error"
+                    ? "Import failed"
                 : "No file selected";
 
     return (
@@ -140,7 +152,9 @@ export default function ImportAssetPanel({
                                 ? "bg-green-500/15 text-green-300"
                                 : uploadStatus === "uploading"
                                     ? "bg-yellow-500/15 text-yellow-300"
-                                    : "bg-white/10 text-white/60"
+                                    : uploadStatus === "error"
+                                        ? "bg-red-500/15 text-red-300"
+                                        : "bg-white/10 text-white/60"
                         }`}
                     >
                         {statusLabel}
@@ -235,7 +249,9 @@ export default function ImportAssetPanel({
                                         className={`h-2.5 w-2.5 rounded-full ${
                                             uploadStatus === "ready"
                                                 ? "bg-green-400"
-                                                : "animate-pulse bg-yellow-400"
+                                                : uploadStatus === "error"
+                                                    ? "bg-red-400"
+                                                    : "animate-pulse bg-yellow-400"
                                         }`}
                                     />
                                     Upload status: {statusLabel}

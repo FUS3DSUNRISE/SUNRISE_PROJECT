@@ -87,6 +87,167 @@ type ModifyPayload = {
     parameters: FormattedParameters;
 };
 
+type ImportedAssetModifyPayload = {
+    command: string;
+};
+
+export type AssetMetadata = {
+    original_filename?: string | null;
+    extension?: string;
+    file_size_bytes?: number;
+    interpretable?: boolean;
+    objects?: string[];
+    structure?: unknown;
+    meshes?: string[];
+    materials?: string[];
+    object_count?: number;
+    mesh_count?: number;
+    material_count?: number;
+    vertex_count?: number;
+    face_count?: number;
+    error?: string;
+    parameters?: unknown;
+    properties?: Record<string, unknown>;
+    [key: string]: unknown;
+};
+
+export type ImportedAssetResponse = {
+    id: number;
+    filename: string;
+    original_filename: string;
+    file_type: string;
+    file_path: string;
+    user_id: number;
+    metadata: AssetMetadata;
+    message?: string;
+};
+
+function getFileExtensionFromName(fileName: string) {
+    const cleanName = fileName.split("?")[0] ?? fileName;
+    const lastDotIndex = cleanName.lastIndexOf(".");
+
+    return lastDotIndex === -1 ? "" : cleanName.slice(lastDotIndex).toLowerCase();
+}
+
+function parseGltfJsonMetadata(data: {
+    nodes?: Array<{ name?: string }>;
+    meshes?: Array<{ name?: string; primitives?: Array<{ material?: number }> }>;
+    materials?: Array<{ name?: string }>;
+}) {
+    const nodes = data.nodes ?? [];
+    const meshes = data.meshes ?? [];
+    const materials = data.materials ?? [];
+
+    return {
+        objects: nodes.map((node, index) => node.name || `Node_${index}`),
+        meshes: meshes.map((mesh, index) => mesh.name || `Mesh_${index}`),
+        materials: materials.map((material, index) => material.name || `Material_${index}`),
+        object_count: nodes.length,
+        mesh_count: meshes.length,
+        material_count: materials.length,
+    };
+}
+
+async function analyzeAssetBlob(blob: Blob, fileName: string): Promise<AssetMetadata> {
+    const extension = getFileExtensionFromName(fileName);
+    const baseMetadata: AssetMetadata = {
+        original_filename: fileName.split(/[\\/]/).pop() || fileName,
+        extension,
+        file_size_bytes: blob.size,
+        interpretable: true,
+        objects: [],
+        meshes: [],
+        materials: [],
+        object_count: 0,
+        mesh_count: 0,
+        material_count: 0,
+    };
+
+    try {
+        if (extension === ".obj") {
+            const text = await blob.text();
+            const objects = new Set<string>();
+            let vertexCount = 0;
+            let faceCount = 0;
+
+            for (const line of text.split(/\r?\n/)) {
+                if (line.startsWith("o ") || line.startsWith("g ")) {
+                    const objectName = line.trim().split(/\s+(.+)/)[1];
+                    if (objectName) objects.add(objectName);
+                } else if (line.startsWith("v ")) {
+                    vertexCount += 1;
+                } else if (line.startsWith("f ")) {
+                    faceCount += 1;
+                }
+            }
+
+            return {
+                ...baseMetadata,
+                objects: Array.from(objects),
+                object_count: objects.size,
+                vertex_count: vertexCount,
+                face_count: faceCount,
+            };
+        }
+
+        if (extension === ".gltf") {
+            const data = JSON.parse(await blob.text());
+            return {
+                ...baseMetadata,
+                ...parseGltfJsonMetadata(data),
+            };
+        }
+
+        if (extension === ".glb") {
+            const buffer = await blob.arrayBuffer();
+            const view = new DataView(buffer);
+            const magic = new TextDecoder().decode(new Uint8Array(buffer, 0, 4));
+
+            if (magic !== "glTF") {
+                return {
+                    ...baseMetadata,
+                    interpretable: false,
+                    error: "Invalid GLB file",
+                };
+            }
+
+            const chunkLength = view.getUint32(12, true);
+            const chunkType = new TextDecoder().decode(new Uint8Array(buffer, 16, 4));
+
+            if (chunkType !== "JSON") {
+                return {
+                    ...baseMetadata,
+                    interpretable: false,
+                    error: "GLB JSON chunk not found",
+                };
+            }
+
+            const jsonChunk = new TextDecoder()
+                .decode(new Uint8Array(buffer, 20, chunkLength))
+                .replace(/\0+$/g, "")
+                .trim();
+            const data = JSON.parse(jsonChunk);
+
+            return {
+                ...baseMetadata,
+                ...parseGltfJsonMetadata(data),
+            };
+        }
+
+        return {
+            ...baseMetadata,
+            interpretable: false,
+            error: "Unsupported format for metadata extraction",
+        };
+    } catch (error) {
+        return {
+            ...baseMetadata,
+            interpretable: false,
+            error: error instanceof Error ? error.message : "Metadata extraction failed",
+        };
+    }
+}
+
 export type PromptResponse = {
     id: number;
     prompt: string;
@@ -264,6 +425,91 @@ export async function modifyModel(
     return await pollPrompt(data.id, onProcessing);
 }
 
+export async function importAsset(file: File): Promise<ImportedAssetResponse> {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const res = await apiFetch("/assets/import", {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+    });
+
+    const data = await parseJson<{ error?: string } & Partial<ImportedAssetResponse>>(res);
+
+    if (!res.ok || typeof data.id !== "number") {
+        const error = new Error(data.error || "Failed to import asset") as Error & {
+            status?: number;
+        };
+        error.status = res.status;
+        throw error;
+    }
+
+    const metadataRes = await apiFetch(`/assets/${data.id}/metadata`, {
+        credentials: "include",
+    });
+    const metadataData = await parseJson<{
+        error?: string;
+        id: number;
+        original_filename: string;
+        file_type: string;
+        metadata: AssetMetadata;
+    }>(metadataRes);
+
+    if (!metadataRes.ok) {
+        const error = new Error(metadataData.error || "Failed to fetch asset metadata") as Error & {
+            status?: number;
+        };
+        error.status = metadataRes.status;
+        throw error;
+    }
+
+    const metadata = metadataData.metadata ?? {};
+
+    if (metadata.interpretable === false) {
+        const error = new Error(
+            "Cannot interpret asset. Please check the file format or integrity."
+        ) as Error & { status?: number; metadata?: AssetMetadata };
+        error.status = 422;
+        error.metadata = metadata;
+        throw error;
+    }
+
+    return {
+        id: data.id,
+        filename: data.filename ?? "",
+        original_filename: data.original_filename ?? metadataData.original_filename,
+        file_type: data.file_type ?? metadataData.file_type,
+        file_path: data.file_path ?? "",
+        user_id: data.user_id ?? 0,
+        metadata,
+        message: data.message,
+    };
+}
+
+export async function modifyImportedAsset(
+    id: number,
+    payload: ImportedAssetModifyPayload,
+    onProcessing: () => void = () => { }
+): Promise<PromptResponse> {
+    const res = await apiFetch(`/assets/${id}/modify`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+    });
+
+    const data = await parseJson<{ error?: string; message?: string; id: number }>(res);
+
+    if (!res.ok) {
+        throw new Error(data.error || data.message || "Failed to modify imported asset");
+    }
+
+    return await pollPrompt(data.id, onProcessing);
+}
+
 export function getDownloadUrl(id: number) {
     return `${API_BASE_URL}/prompts/${id}/download`;
 }
@@ -283,6 +529,35 @@ export async function getPreviewBlobUrl(id: number): Promise<string> {
 
     const blob = await res.blob();
     return URL.createObjectURL(blob);
+}
+
+export async function getPromptFileAssetMetadata(
+    id: number,
+    fileName: string
+): Promise<AssetMetadata> {
+    const res = await apiFetch(`/prompts/${id}/file`, {
+        credentials: "include",
+    });
+
+    const data = await parseJson<{ error?: string }>(res.clone());
+
+    if (!res.ok) {
+        throw new Error(data.error || "Failed to fetch generated asset metadata");
+    }
+
+    return await analyzeAssetBlob(await res.blob(), fileName);
+}
+
+export async function getPublicAssetMetadata(path: string, fileName: string): Promise<AssetMetadata> {
+    const res = await fetch(path, {
+        cache: "no-store",
+    });
+
+    if (!res.ok) {
+        throw new Error("Failed to fetch asset metadata");
+    }
+
+    return await analyzeAssetBlob(await res.blob(), fileName);
 }
 
 export async function signupUser(email: string, password: string): Promise<AuthResponse> {
