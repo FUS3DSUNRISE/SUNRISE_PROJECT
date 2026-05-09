@@ -194,10 +194,10 @@ function formatMetadataValue(value: unknown) {
     return JSON.stringify(value);
 }
 
-function formatMegabytes(value: unknown) {
+function formatKilobytes(value: unknown) {
     if (typeof value !== "number" || !Number.isFinite(value)) return null;
 
-    return `${(value / (1024 * 1024)).toFixed(2)} MB`;
+    return `${(value / 1024).toFixed(2)} KB`;
 }
 
 function formatPropertyLabel(key: string) {
@@ -211,21 +211,80 @@ function formatPropertyLabel(key: string) {
         .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function getMetadataProperties(metadata: AssetMetadata) {
+function getMetadataProperties(metadata: AssetMetadata, objectCountOverride?: number) {
     const properties: Array<[string, unknown]> = [];
     const extension = typeof metadata.extension === "string"
         ? metadata.extension.replace(".", "").toUpperCase()
         : null;
-    const fileSize = formatMegabytes(metadata.file_size_bytes);
-    const objectCount = typeof metadata.object_count === "number"
+    const fileSize = formatKilobytes(metadata.file_size_bytes);
+    const objectCount = typeof objectCountOverride === "number"
+        ? objectCountOverride
+        : typeof metadata.object_count === "number"
         ? metadata.object_count
         : normalizeStringList(metadata.objects).length;
 
     if (extension) properties.push(["Extension", extension]);
-    if (fileSize) properties.push(["File size (MB)", fileSize]);
+    if (fileSize) properties.push(["File size (KB)", fileSize]);
     properties.push(["Objects", objectCount]);
 
     return properties;
+}
+
+function getNamePrefix(value: string) {
+    const trimmed = value.trim();
+
+    return trimmed
+        .replace(/[._-]*\d+$/i, "")
+        .replace(/[\s_-]*\d+$/i, "")
+        .trim() || trimmed;
+}
+
+function getGroupedName(value: string, count: number) {
+    const prefix = getNamePrefix(value);
+
+    if (count <= 1 || prefix.toLowerCase().endsWith("s")) return prefix;
+
+    return `${prefix}s`;
+}
+
+function summarizeGroupedValues(values: string[], shouldPluralize = true) {
+    const uniqueValues = Array.from(new Set(values.filter(Boolean)));
+
+    if (uniqueValues.length === 0) return "Unknown";
+    if (uniqueValues.length === 1) return getNamePrefix(uniqueValues[0]);
+
+    const prefix = getNamePrefix(uniqueValues[0]);
+    const hasSharedPrefix = uniqueValues.every((value) => getNamePrefix(value) === prefix);
+
+    if (hasSharedPrefix) {
+        const displayName = shouldPluralize
+            ? getGroupedName(uniqueValues[0], uniqueValues.length)
+            : prefix;
+
+        if (!shouldPluralize) return displayName;
+
+        return `${displayName} (${uniqueValues.length})`;
+    }
+
+    return uniqueValues.join(", ");
+}
+
+function summarizeCountedGroupedValues(values: string[], count: number) {
+    const uniqueValues = Array.from(new Set(values.filter(Boolean)));
+
+    if (uniqueValues.length === 0) return "Unknown";
+
+    const prefix = getNamePrefix(uniqueValues[0]);
+    const hasSharedPrefix = uniqueValues.every((value) => getNamePrefix(value) === prefix);
+    const displayName = hasSharedPrefix
+        ? getGroupedName(uniqueValues[0], count)
+        : uniqueValues.join(", ");
+
+    return `${count} ${displayName}`;
+}
+
+function hasKnownMetadataName(value: string) {
+    return Boolean(value.trim()) && value.trim().toLowerCase() !== "unknown";
 }
 
 function getCompactObjectRows(metadata: AssetMetadata) {
@@ -236,18 +295,52 @@ function getCompactObjectRows(metadata: AssetMetadata) {
 
     if (rowCount === 0) return [];
 
-    return Array.from({ length: rowCount }, (_, index) => {
+    const rawRows = Array.from({ length: rowCount }, (_, index) => {
         const objectName = objects[index] || meshes[index] || `Object ${index + 1}`;
-        const materialName = materials[index] || meshes[index] || "Unknown";
-        const meshName = meshes[index];
+        const meshName = meshes[index] || "";
+        const materialName = materials[index] || "";
+
+        return { objectName, meshName, materialName };
+    });
+    const hasDetailedRows = rawRows.some((row) => row.meshName || row.materialName);
+    const visibleRows = hasDetailedRows
+        ? rawRows.filter((row) => row.meshName || row.materialName)
+        : rawRows;
+    const groupedRows = visibleRows.reduce((groups, row) => {
+        const groupKey = getNamePrefix(row.objectName).toLowerCase();
+        const currentGroup = groups.get(groupKey);
+
+        if (currentGroup) {
+            currentGroup.push(row);
+        } else {
+            groups.set(groupKey, [row]);
+        }
+
+        return groups;
+    }, new Map<string, typeof rawRows>());
+
+    return Array.from(groupedRows.entries()).map(([groupKey, rows]) => {
+        const firstRow = rows[0];
+        const displayName = getGroupedName(firstRow.objectName, rows.length);
+        const meshName = summarizeCountedGroupedValues(rows.map((row) => row.meshName), rows.length);
+        const materialName = summarizeGroupedValues(rows.map((row) => row.materialName), false);
+        const hasKnownMaterial = hasKnownMetadataName(materialName);
+        const label = hasKnownMaterial
+            ? `${displayName} — ${meshName} | ${materialName}`
+            : `${displayName} — ${meshName}`;
 
         return {
-            key: `${objectName}-${materialName}-${index}`,
-            label: meshName && meshName !== materialName
-                ? `${objectName} (Mesh: ${meshName}): ${materialName}`
-                : `${objectName}: ${materialName}`,
+            key: `${groupKey}-${rows.length}`,
+            label,
+            hasKnownMaterial,
         };
     });
+}
+
+function getModifiedObjectRows(rows: ReturnType<typeof getCompactObjectRows>) {
+    const activeRow = rows.find((row) => row.hasKnownMaterial) ?? rows[0];
+
+    return activeRow ? [activeRow] : [];
 }
 
 function AssetDetailsPanel({
@@ -256,12 +349,14 @@ function AssetDetailsPanel({
     errorMessage,
     isOpen,
     onToggle,
+    showModifiedObjectOnly = false,
 }: {
     metadata: AssetMetadata | null;
     name: string | null;
     errorMessage: string | null;
     isOpen: boolean;
     onToggle: () => void;
+    showModifiedObjectOnly?: boolean;
 }) {
     if (!metadata && !errorMessage) return null;
 
@@ -269,7 +364,7 @@ function AssetDetailsPanel({
 
     if (errorMessage) {
         return (
-            <section className="mt-6 rounded-[18px] border border-red-500/30 bg-red-500/10 px-5 py-4">
+            <section className="rounded-[18px] border border-red-500/30 bg-red-500/10 px-5 py-4">
                 <button
                     type="button"
                     onClick={onToggle}
@@ -299,11 +394,14 @@ function AssetDetailsPanel({
 
     if (!activeMetadata) return null;
 
-    const objectRows = getCompactObjectRows(activeMetadata);
-    const properties = getMetadataProperties(activeMetadata);
+    const allObjectRows = getCompactObjectRows(activeMetadata);
+    const objectRows = showModifiedObjectOnly
+        ? getModifiedObjectRows(allObjectRows)
+        : allObjectRows;
+    const properties = getMetadataProperties(activeMetadata, objectRows.length);
 
     return (
-        <section className="mt-6 rounded-[18px] border border-white/10 bg-[#11131f]/70 px-5 py-4">
+        <section className="rounded-[18px] border border-white/10 bg-[#11131f]/70 px-5 py-4">
             <button
                 type="button"
                 onClick={onToggle}
@@ -365,6 +463,65 @@ function AssetDetailsPanel({
     );
 }
 
+function ModifyTargetPanel({
+    modifyTarget,
+    modifyCommand,
+    isModifyBusy,
+    canModifyCurrentTarget,
+    onModifyCommandChange,
+    onModify,
+}: {
+    modifyTarget: ModifyTarget;
+    modifyCommand: string;
+    isModifyBusy: boolean;
+    canModifyCurrentTarget: boolean;
+    onModifyCommandChange: (value: string) => void;
+    onModify: () => void;
+}) {
+    return (
+        <div
+            data-tour="modify"
+            className="rounded-xl border border-[#ff8a2c] bg-[#0b1020]/50 p-5"
+        >
+            <p className="mb-2 text-sm font-semibold uppercase text-[#ff8a2c]">
+                Modify target
+            </p>
+            <div className="mb-4 rounded-lg border border-white/10 bg-[#0f111a] px-4 py-3">
+                <p className="text-xs uppercase tracking-[0.14em] text-white/35">
+                    Current file
+                </p>
+                <p className="mt-1 truncate text-sm font-medium text-white">
+                    {modifyTarget.name}
+                </p>
+                <p className="mt-2 text-xs text-white/45">
+                    {modifyTarget.kind === "imported"
+                        ? "This imported file will be modified."
+                        : modifyTarget.id === 999
+                            ? "This preview file will be modified."
+                            : "This generated file will be modified."}
+                </p>
+            </div>
+            <div className="flex flex-col gap-3 sm:flex-row">
+                <input
+                    type="text"
+                    value={modifyCommand}
+                    onChange={(e) => onModifyCommandChange(e.target.value)}
+                    placeholder="e.g., Make it taller..."
+                    disabled={isModifyBusy}
+                    className="min-w-0 flex-1 rounded-lg border border-white/10 bg-[#0f111a] px-4 py-3 text-sm text-white outline-none focus:border-[#ff8a2c]"
+                />
+                <button
+                    onClick={onModify}
+                    disabled={!modifyCommand.trim() || isModifyBusy || !canModifyCurrentTarget}
+                    className="shrink-0 rounded-lg bg-[#ff8a2c] px-6 py-3 text-sm font-bold text-black transition hover:bg-[#ff9b4d] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                    {isModifyBusy ? "Modifying..." : "Modify"}
+                </button>
+            </div>
+        </div>
+    );
+}
+
 export default function Home() {
     const {
         status,
@@ -393,6 +550,8 @@ export default function Home() {
     const [assetMetadata, setAssetMetadata] = useState<AssetMetadata | null>(null);
     const [assetInterpretationError, setAssetInterpretationError] = useState<string | null>(null);
     const [isAssetMetadataOpen, setIsAssetMetadataOpen] = useState(false);
+    const [busyModifyTarget, setBusyModifyTarget] = useState<ModifyTarget | null>(null);
+    const [showModifiedObjectOnly, setShowModifiedObjectOnly] = useState(false);
     const [assetResetSignal, setAssetResetSignal] = useState(0);
     const [isTourOpen, setIsTourOpen] = useState(false);
     const [exampleIndex, setExampleIndex] = useState(0);
@@ -516,9 +675,8 @@ export default function Home() {
         !activeLocalAsset &&
         !hasRatedCurrentResult;
     const shouldShowResultPanel =
-        status === "error" ||
-        Boolean(modifyTarget) ||
-        (status === "success" && result && !activeLocalAsset);
+        (status === "error" && !modifyTarget) ||
+        (status === "success" && result && !activeLocalAsset && !result.result_path);
     const activeTourSteps = guidedTourSteps.filter((step) => {
         if (step.target === "[data-tour='auth-actions']") {
             return !user;
@@ -541,6 +699,7 @@ export default function Home() {
 
     const isGenerateDisabled = prompt.length > MAX_PROMPT_LENGTH;
     const isModifyBusy = status === "submitted" || status === "processing";
+    const visibleModifyTarget = modifyTarget ?? (isModifyBusy ? busyModifyTarget : null);
 
     const getFormattedParameters = () => ({
         size: parameters.size,
@@ -562,8 +721,12 @@ export default function Home() {
         if (modifyTarget.kind === "imported") {
             try {
                 const store = useGenerationStore.getState();
+                setBusyModifyTarget(modifyTarget);
                 store.setStatus("submitted");
                 setErrorMessage(null);
+                setAssetMetadata(null);
+                setAssetInterpretationError(null);
+                setIsAssetMetadataOpen(false);
 
                 const newResult = await modifyImportedAsset(modifyTarget.id, {
                     command: modifyCommand,
@@ -581,12 +744,17 @@ export default function Home() {
                 setImportedAssetName(null);
                 setAssetMetadata(null);
                 setAssetInterpretationError(null);
+                setIsAssetMetadataOpen(false);
+                setAssetResetSignal((current) => current + 1);
                 store.setResult(newResult);
                 store.setStatus("success");
+                setBusyModifyTarget(null);
+                setShowModifiedObjectOnly(true);
                 setModifyCommand("");
             } catch (error) {
                 console.error("Imported asset modification failed:", error);
                 useGenerationStore.getState().setStatus("error");
+                setBusyModifyTarget(null);
                 setErrorMessage(
                     error instanceof Error
                         ? error.message
@@ -608,8 +776,12 @@ export default function Home() {
 
         try {
             const store = useGenerationStore.getState();
+            setBusyModifyTarget(modifyTarget);
             store.setStatus("submitted");
             setErrorMessage(null);
+            setAssetMetadata(null);
+            setAssetInterpretationError(null);
+            setIsAssetMetadataOpen(false);
 
             const payload = {
                 command: modifyCommand,
@@ -622,10 +794,13 @@ export default function Home() {
 
             store.setResult(newResult);
             store.setStatus("success");
+            setBusyModifyTarget(null);
+            setShowModifiedObjectOnly(true);
             setModifyCommand("");
         } catch (error) {
             console.error("Modification failed:", error);
             useGenerationStore.getState().setStatus("error");
+            setBusyModifyTarget(null);
             setErrorMessage(
                 error instanceof Error
                     ? error.message
@@ -651,6 +826,8 @@ export default function Home() {
         setAssetMetadata(null);
         setAssetInterpretationError(null);
         setIsAssetMetadataOpen(false);
+        setBusyModifyTarget(null);
+        setShowModifiedObjectOnly(false);
         setModifyCommand("");
     };
 
@@ -659,29 +836,36 @@ export default function Home() {
         importedAsset: ImportedAssetResponse
     ) => {
         setLocalAsset((currentAsset) => {
-            if (!currentAsset) return currentAsset;
+            const fallbackAsset = currentAsset ?? {
+                ...asset,
+                previewUrl: URL.createObjectURL(asset.file),
+            };
 
             return {
-                ...currentAsset,
+                ...fallbackAsset,
                 name: asset.name,
                 importedAssetId: importedAsset.id,
                 metadata: importedAsset.metadata,
             };
         });
         setImportedAssetName(null);
-        setAssetMetadata(importedAsset.metadata);
+        setAssetMetadata(null);
         setAssetInterpretationError(null);
-        setIsAssetMetadataOpen(true);
+        setIsAssetMetadataOpen(false);
+        setBusyModifyTarget(null);
+        setShowModifiedObjectOnly(false);
         setParameters(deriveParametersFromAssetMetadata(importedAsset.metadata, parameters));
         useGenerationStore.getState().setStatus("idle");
         setErrorMessage(null);
     };
 
-    const handleAssetInterpretationError = (message: string) => {
+    const handleAssetInterpretationError = (message: string, metadata?: AssetMetadata) => {
         setImportedAssetName(null);
-        setAssetMetadata(null);
+        setAssetMetadata(metadata ?? null);
         setAssetInterpretationError(message);
         setIsAssetMetadataOpen(true);
+        setBusyModifyTarget(null);
+        setShowModifiedObjectOnly(false);
         useGenerationStore.getState().setStatus("error");
         setErrorMessage("Cannot interpret asset. Please check the file format or integrity.");
     };
@@ -698,12 +882,18 @@ export default function Home() {
         setAssetMetadata(null);
         setAssetInterpretationError(null);
         setIsAssetMetadataOpen(false);
+        setBusyModifyTarget(null);
+        setShowModifiedObjectOnly(false);
         setAssetResetSignal((current) => current + 1);
     };
 
     const handleUseAsset = (asset: LocalAsset) => {
         if (activeLocalAsset?.importedAssetId) {
             setImportedAssetName(activeLocalAsset.name);
+            setAssetMetadata(activeLocalAsset.metadata ?? null);
+            setAssetInterpretationError(null);
+            setIsAssetMetadataOpen(true);
+            setShowModifiedObjectOnly(false);
             setErrorMessage(null);
         }
 
@@ -818,6 +1008,7 @@ export default function Home() {
                                                     setAssetMetadata(null);
                                                     setAssetInterpretationError(null);
                                                     setIsAssetMetadataOpen(false);
+                                                    setShowModifiedObjectOnly(false);
                                                     logout();
                                                     setShowUserMenu(false);
                                                 }}
@@ -909,6 +1100,30 @@ export default function Home() {
                                 )}
                             </div>
                         </div>
+
+                        {(assetMetadata || assetInterpretationError || visibleModifyTarget) && (
+                            <div className="ml-auto mt-6 w-full max-w-[320px] space-y-4">
+                                <AssetDetailsPanel
+                                    metadata={assetMetadata}
+                                    name={activeLocalAsset?.name ?? generatedModelName}
+                                    errorMessage={assetInterpretationError}
+                                    isOpen={isAssetMetadataOpen}
+                                    onToggle={() => setIsAssetMetadataOpen((current) => !current)}
+                                    showModifiedObjectOnly={showModifiedObjectOnly}
+                                />
+
+                                {visibleModifyTarget && (
+                                    <ModifyTargetPanel
+                                        modifyTarget={visibleModifyTarget}
+                                        modifyCommand={modifyCommand}
+                                        isModifyBusy={isModifyBusy}
+                                        canModifyCurrentTarget={Boolean(modifyTarget)}
+                                        onModifyCommandChange={setModifyCommand}
+                                        onModify={handleModify}
+                                    />
+                                )}
+                            </div>
+                        )}
                     </section>
 
                     <aside className="self-start rounded-[24px] border border-white/10 bg-[#0b1020]/50 p-5 shadow-inner sm:p-6">
@@ -1024,13 +1239,22 @@ export default function Home() {
                                 />
                             </div>
 
-                            <AssetDetailsPanel
-                                metadata={assetMetadata}
-                                name={activeLocalAsset?.name ?? null}
-                                errorMessage={assetInterpretationError}
-                                isOpen={isAssetMetadataOpen}
-                                onToggle={() => setIsAssetMetadataOpen((current) => !current)}
-                            />
+                            {canDownloadCurrentResult && result && (
+                                <section className="mt-4 rounded-[18px] border border-white/10 bg-[#11131f]/70 px-5 py-4">
+                                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#ff8a2c]">
+                                                Download
+                                            </p>
+                                            <a
+                                                data-tour="download"
+                                                href={result.id === 999 ? result.result_path ?? "#" : getDownloadUrl(result.id)}
+                                                download={result.id === 999 ? "demo-model.glb" : undefined}
+                                                className="mt-3 flex w-full items-center justify-center rounded-[14px] border border-white/10 bg-[#171927] px-4 py-4 text-base font-medium text-white transition hover:bg-white/5"
+                                            >
+                                                ↓ Download
+                                            </a>
+                                        </section>
+                            )}
+
 
                             {shouldShowResultPanel ? (
                                 <div className="mt-8 border-t border-white/10 pt-8">
@@ -1079,49 +1303,6 @@ export default function Home() {
                                                         </span>
                                                     </p>
                                                 </div>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {modifyTarget && (
-                                        <div
-                                            data-tour="modify"
-                                            className="rounded-xl border border-[#ff8a2c] bg-[#0b1020]/50 p-5"
-                                        >
-                                            <p className="mb-2 text-sm font-semibold uppercase text-[#ff8a2c]">
-                                                Modify target
-                                            </p>
-                                            <div className="mb-4 rounded-lg border border-white/10 bg-[#0f111a] px-4 py-3">
-                                                <p className="text-xs uppercase tracking-[0.14em] text-white/35">
-                                                    Current file
-                                                </p>
-                                                <p className="mt-1 truncate text-sm font-medium text-white">
-                                                    {modifyTarget.name}
-                                                </p>
-                                                <p className="mt-2 text-xs text-white/45">
-                                                    {modifyTarget.kind === "imported"
-                                                        ? "This imported file will be modified."
-                                                        : modifyTarget.id === 999
-                                                            ? "This preview file will be modified."
-                                                            : "This generated file will be modified."}
-                                                </p>
-                                            </div>
-                                            <div className="flex flex-col gap-3 sm:flex-row">
-                                                <input
-                                                    type="text"
-                                                    value={modifyCommand}
-                                                    onChange={(e) => setModifyCommand(e.target.value)}
-                                                    placeholder="e.g., Make it taller..."
-                                                    disabled={isModifyBusy}
-                                                    className="min-w-0 flex-1 rounded-lg border border-white/10 bg-[#0f111a] px-4 py-3 text-sm text-white outline-none focus:border-[#ff8a2c]"
-                                                />
-                                                <button
-                                                    onClick={handleModify}
-                                                    disabled={!modifyCommand.trim() || isModifyBusy || !canModifyCurrentTarget}
-                                                    className="shrink-0 rounded-lg bg-[#ff8a2c] px-6 py-3 text-sm font-bold text-black transition hover:bg-[#ff9b4d] disabled:cursor-not-allowed disabled:opacity-50"
-                                                >
-                                                    {isModifyBusy ? "Modifying..." : "Modify"}
-                                                </button>
                                             </div>
                                         </div>
                                     )}

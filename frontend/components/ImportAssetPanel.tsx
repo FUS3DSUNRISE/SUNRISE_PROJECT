@@ -43,7 +43,7 @@ type ImportAssetPanelProps = {
     lockedMessage?: string;
     onAssetSelected?: (asset: LocalAsset) => void;
     onAssetImported?: (asset: LocalAsset, importedAsset: ImportedAssetResponse) => void;
-    onInterpretationError?: (message: string) => void;
+    onInterpretationError?: (message: string, metadata?: ImportedAssetResponse["metadata"]) => void;
     onUseAsset?: (asset: LocalAsset) => void;
 };
 
@@ -96,6 +96,10 @@ export default function ImportAssetPanel({
             setUploadStatus("ready");
             onAssetImported?.(nextAsset, importedAsset);
         } catch (error) {
+            const metadata =
+                error instanceof Error && "metadata" in error
+                    ? (error as Error & { metadata?: ImportedAssetResponse["metadata"] }).metadata
+                    : undefined;
             const message =
                 error instanceof Error
                     ? error.message
@@ -103,7 +107,7 @@ export default function ImportAssetPanel({
 
             setUploadStatus("error");
             setValidationMessage(message);
-            onInterpretationError?.(message);
+            onInterpretationError?.(message, metadata);
         }
     };
 
