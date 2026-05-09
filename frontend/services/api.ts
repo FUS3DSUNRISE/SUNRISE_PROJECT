@@ -1,4 +1,64 @@
-const BASE_URL = "http://localhost:5000";
+import { useServiceStatusStore } from "@/state/serviceStatusStore";
+
+const DEFAULT_API_BASE_URL = "http://localhost:5000";
+const API_BASE_URL =
+    process.env.NEXT_PUBLIC_API_BASE_URL?.trim().replace(/\/+$/, "") ||
+    DEFAULT_API_BASE_URL;
+
+function markBackendUnavailable() {
+    useServiceStatusStore
+        .getState()
+        .setUnavailable(
+            `Could not reach the backend API at ${API_BASE_URL}. Confirm the backend is running and NEXT_PUBLIC_API_BASE_URL is correct.`
+        );
+}
+
+function isUnavailableStatus(status: number) {
+    return status === 502 || status === 503 || status === 504;
+}
+
+async function apiFetch(path: string, init?: RequestInit) {
+    try {
+        const res = await fetch(`${API_BASE_URL}${path}`, init);
+
+        if (isUnavailableStatus(res.status)) {
+            markBackendUnavailable();
+        }
+
+        return res;
+    } catch (error) {
+        markBackendUnavailable();
+        throw error;
+    }
+}
+
+export async function checkBackendConnection() {
+    try {
+        const res = await fetch(`${API_BASE_URL}/`, {
+            method: "GET",
+            cache: "no-store",
+        });
+
+        if (res.ok) {
+            useServiceStatusStore.getState().setAvailable();
+            return true;
+        }
+
+        markBackendUnavailable();
+        return false;
+    } catch {
+        markBackendUnavailable();
+        return false;
+    }
+}
+
+async function parseJson<T>(res: Response): Promise<T> {
+    try {
+        return (await res.json()) as T;
+    } catch {
+        return {} as T;
+    }
+}
 
 export type FormattedParameters = {
     size: {
@@ -87,11 +147,13 @@ export type FeedbackComment = {
     quality_score: number | null;
     comment: string;
     prompt: string | null;
+    modification_command: string | null;
+    modified_at: string | null;
     created_at: string | null;
 };
 
 export async function createPrompt(payload: GeneratePayload): Promise<PromptResponse> {
-    const res = await fetch(`${BASE_URL}/prompts`, {
+    const res = await apiFetch("/prompts", {
         method: "POST",
         credentials: "include",
         headers: {
@@ -100,7 +162,7 @@ export async function createPrompt(payload: GeneratePayload): Promise<PromptResp
         body: JSON.stringify(payload),
     });
 
-    const data = await res.json();
+    const data = await parseJson<{ error?: string; message?: string } & PromptResponse>(res);
 
     if (!res.ok) {
         throw new Error(data.error || data.message || "Failed to create prompt");
@@ -118,7 +180,7 @@ export async function createPrompt(payload: GeneratePayload): Promise<PromptResp
 }
 
 export async function getPrompt(id: number): Promise<PromptResponse> {
-    const res = await fetch(`${BASE_URL}/prompts/${id}`, {
+    const res = await apiFetch(`/prompts/${id}`, {
         credentials: "include",
     });
 
@@ -126,7 +188,7 @@ export async function getPrompt(id: number): Promise<PromptResponse> {
         throw new Error("Failed to fetch prompt");
     }
 
-    const data = await res.json();
+    const data = await parseJson<PromptResponse>(res);
 
     return {
         id: data.id,
@@ -183,7 +245,7 @@ export async function modifyModel(
     payload: ModifyPayload,
     onProcessing: () => void = () => { }
 ): Promise<PromptResponse> {
-    const res = await fetch(`${BASE_URL}/prompts/${id}/modify`, {
+    const res = await apiFetch(`/prompts/${id}/modify`, {
         method: "POST",
         credentials: "include",
         headers: {
@@ -192,7 +254,7 @@ export async function modifyModel(
         body: JSON.stringify(payload),
     });
 
-    const data = await res.json();
+    const data = await parseJson<{ error?: string; message?: string; id: number }>(res);
 
     if (!res.ok) {
         throw new Error(data.error || data.message || "Failed to modify model");
@@ -203,15 +265,15 @@ export async function modifyModel(
 }
 
 export function getDownloadUrl(id: number) {
-    return `${BASE_URL}/prompts/${id}/download`;
+    return `${API_BASE_URL}/prompts/${id}/download`;
 }
 
 export function getPreviewUrl(id: number) {
-    return `${BASE_URL}/prompts/${id}/file`;
+    return `${API_BASE_URL}/prompts/${id}/file`;
 }
 
 export async function getPreviewBlobUrl(id: number): Promise<string> {
-    const res = await fetch(`${BASE_URL}/prompts/${id}/file`, {
+    const res = await apiFetch(`/prompts/${id}/file`, {
         credentials: "include",
     });
 
@@ -224,7 +286,7 @@ export async function getPreviewBlobUrl(id: number): Promise<string> {
 }
 
 export async function signupUser(email: string, password: string): Promise<AuthResponse> {
-    const res = await fetch(`${BASE_URL}/auth/signup`, {
+    const res = await apiFetch("/auth/signup", {
         method: "POST",
         credentials: "include",
         headers: {
@@ -233,7 +295,7 @@ export async function signupUser(email: string, password: string): Promise<AuthR
         body: JSON.stringify({ email, password }),
     });
 
-    const data = (await res.json()) as AuthResponse;
+    const data = await parseJson<AuthResponse>(res);
 
     if (!res.ok) {
         throw new Error(data.error || "Signup failed");
@@ -243,7 +305,7 @@ export async function signupUser(email: string, password: string): Promise<AuthR
 }
 
 export async function loginUser(email: string, password: string): Promise<AuthResponse> {
-    const res = await fetch(`${BASE_URL}/auth/login`, {
+    const res = await apiFetch("/auth/login", {
         method: "POST",
         credentials: "include",
         headers: {
@@ -252,7 +314,7 @@ export async function loginUser(email: string, password: string): Promise<AuthRe
         body: JSON.stringify({ email, password }),
     });
 
-    const data = (await res.json()) as AuthResponse;
+    const data = await parseJson<AuthResponse>(res);
 
     if (!res.ok) {
         throw new Error(data.error || "Login failed");
@@ -262,11 +324,11 @@ export async function loginUser(email: string, password: string): Promise<AuthRe
 }
 
 export async function getCurrentUser(): Promise<AuthResponse> {
-    const res = await fetch(`${BASE_URL}/auth/me`, {
+    const res = await apiFetch("/auth/me", {
         credentials: "include",
     });
 
-    const data = (await res.json()) as AuthResponse;
+    const data = await parseJson<AuthResponse>(res);
 
     if (!res.ok) {
         throw new Error(data.error || "Failed to fetch current user");
@@ -276,12 +338,12 @@ export async function getCurrentUser(): Promise<AuthResponse> {
 }
 
 export async function logoutUser() {
-    const res = await fetch(`${BASE_URL}/auth/logout`, {
+    const res = await apiFetch("/auth/logout", {
         method: "POST",
         credentials: "include",
     });
 
-    const data = (await res.json()) as { error?: string };
+    const data = await parseJson<{ error?: string }>(res);
 
     if (!res.ok) {
         throw new Error(data.error || "Logout failed");
@@ -291,11 +353,11 @@ export async function logoutUser() {
 }
 
 export async function getMyPrompts() {
-    const res = await fetch(`${BASE_URL}/prompts/me`, {
+    const res = await apiFetch("/prompts/me", {
         credentials: "include",
     });
 
-    const data = (await res.json()) as { error?: string };
+    const data = await parseJson<{ error?: string }>(res);
 
     if (!res.ok) {
         throw new Error(data.error || "Failed to fetch user prompts");
@@ -308,7 +370,7 @@ export async function submitFeedback(
     promptId: number,
     payload: FeedbackPayload
 ): Promise<FeedbackResponse> {
-    const res = await fetch(`${BASE_URL}/prompts/${promptId}/feedback`, {
+    const res = await apiFetch(`/prompts/${promptId}/feedback`, {
         method: "POST",
         credentials: "include",
         headers: {
@@ -317,7 +379,7 @@ export async function submitFeedback(
         body: JSON.stringify(payload),
     });
 
-    const data = (await res.json()) as { error?: string };
+    const data = await parseJson<{ error?: string }>(res);
 
     if (!res.ok) {
         const error = new Error(data.error || "Failed to submit feedback") as Error & {
@@ -331,11 +393,11 @@ export async function submitFeedback(
 }
 
 export async function getFeedbackAnalytics(): Promise<FeedbackAnalytics> {
-    const res = await fetch(`${BASE_URL}/prompts/feedback/analytics`, {
+    const res = await apiFetch("/prompts/feedback/analytics", {
         credentials: "include",
     });
 
-    const data = (await res.json()) as { error?: string };
+    const data = await parseJson<{ error?: string }>(res);
 
     if (!res.ok) {
         throw new Error(data.error || "Failed to fetch feedback analytics");
