@@ -97,6 +97,9 @@ type ModifyPayload = {
 
 type ImportedAssetModifyPayload = {
     command: string;
+    parameters: FormattedParameters;
+    imported_asset_id: number;
+    asset_path?: string;
 };
 
 export type AssetMetadata = {

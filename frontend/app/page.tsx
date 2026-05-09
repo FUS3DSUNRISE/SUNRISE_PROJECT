@@ -722,6 +722,7 @@ export default function Home() {
         if (modifyTarget.kind === "imported") {
             try {
                 const store = useGenerationStore.getState();
+                const importedAsset = store.importedAsset;
                 setBusyModifyTarget(modifyTarget);
                 store.setStatus("submitted");
                 setErrorMessage(null);
@@ -731,6 +732,9 @@ export default function Home() {
 
                 const newResult = await modifyImportedAsset(modifyTarget.id, {
                     command: modifyCommand,
+                    parameters: getFormattedParameters(),
+                    imported_asset_id: modifyTarget.id,
+                    asset_path: importedAsset?.filePath,
                 }, () => {
                     store.setStatus("processing");
                 });
