@@ -44,10 +44,17 @@ const formatScore = (score: number | null) => (score === null ? "N/A" : `${score
 const formatDate = (value: string | null) => {
   if (!value) return "Unknown date";
 
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Unknown date";
+
   return new Intl.DateTimeFormat("en", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZoneName: "short",
+  }).format(date);
 };
 
 export default function AnalyticsPage() {
@@ -246,12 +253,17 @@ export default function AnalyticsPage() {
                         <span className="capitalize text-white/70">{item.rating}</span>
                         <span>Accuracy: {item.accuracy_score ?? "N/A"}</span>
                         <span>Quality: {item.quality_score ?? "N/A"}</span>
-                        <span>{formatDate(item.created_at)}</span>
+                        <span>Feedback: {formatDate(item.created_at)}</span>
                       </div>
                       <p className="mt-3 text-sm leading-6 text-white/85">{item.comment}</p>
                       {item.prompt && (
                         <p className="mt-3 truncate text-xs text-white/40">
                           Prompt #{item.prompt_id}: {item.prompt}
+                        </p>
+                      )}
+                      {item.modification_command && (
+                        <p className="mt-2 truncate text-xs text-[#ff8a2c]/75">
+                          Modification: {item.modification_command}
                         </p>
                       )}
                     </article>

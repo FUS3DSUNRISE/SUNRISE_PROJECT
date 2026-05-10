@@ -7,6 +7,7 @@ import styles from "./FeedbackWidget.module.css";
 type FeedbackWidgetProps = {
     promptId: number;
     disabledReason?: string;
+    onSubmitted?: () => void;
 };
 
 type SubmitState = "idle" | "submitting" | "submitted" | "error";
@@ -15,21 +16,22 @@ type FeedbackError = Error & { status?: number };
 const storageKeyFor = (promptId: number) => `sunrise-feedback-submitted-${promptId}`;
 const ratingOptions = Array.from({ length: 5 }, (_, index) => index + 1);
 
+export const hasStoredFeedback = (promptId: number) =>
+    typeof window !== "undefined" && Boolean(localStorage.getItem(storageKeyFor(promptId)));
+
 const ratingFromScore = (score: number): FeedbackRating => {
     if (score >= 4) return "positive";
     if (score <= 2) return "negative";
     return "neutral";
 };
 
-export default function FeedbackWidget({ promptId, disabledReason }: FeedbackWidgetProps) {
+export default function FeedbackWidget({ promptId, disabledReason, onSubmitted }: FeedbackWidgetProps) {
     const [qualityScore, setQualityScore] = useState<number | null>(null);
     const [accuracyScore, setAccuracyScore] = useState<number | null>(null);
     const [isCommentOpen, setIsCommentOpen] = useState(false);
     const [comment, setComment] = useState("");
     const [submitState, setSubmitState] = useState<SubmitState>(() =>
-        typeof window !== "undefined" && localStorage.getItem(storageKeyFor(promptId))
-            ? "submitted"
-            : "idle"
+        hasStoredFeedback(promptId) ? "submitted" : "idle"
     );
     const [message, setMessage] = useState<string | null>(null);
 
@@ -43,6 +45,10 @@ export default function FeedbackWidget({ promptId, disabledReason }: FeedbackWid
         if (qualityScore >= 3) return "Helpful";
         return "Needs work";
     }, [qualityScore]);
+
+    if (isSubmitted) {
+        return null;
+    }
 
     const handleSubmit = async () => {
         if (!qualityScore || !accuracyScore || isBlocked) return;
@@ -61,6 +67,7 @@ export default function FeedbackWidget({ promptId, disabledReason }: FeedbackWid
             localStorage.setItem(storageKeyFor(promptId), "true");
             setSubmitState("submitted");
             setMessage("Feedback submitted. Thank you.");
+            onSubmitted?.();
         } catch (error) {
             const feedbackError = error as FeedbackError;
             const duplicate = feedbackError.status === 409;
@@ -68,6 +75,7 @@ export default function FeedbackWidget({ promptId, disabledReason }: FeedbackWid
                 localStorage.setItem(storageKeyFor(promptId), "true");
                 setSubmitState("submitted");
                 setMessage("Feedback already submitted for this result.");
+                onSubmitted?.();
                 return;
             }
 
@@ -78,7 +86,8 @@ export default function FeedbackWidget({ promptId, disabledReason }: FeedbackWid
 
     return (
         <section
-            className={`${styles.feedback} ${isSubmitted ? styles.submitted : ""}`}
+            data-tour="feedback"
+            className={styles.feedback}
             aria-label="Rate this generated model"
         >
             <div className={styles.header}>
@@ -87,7 +96,6 @@ export default function FeedbackWidget({ promptId, disabledReason }: FeedbackWid
                     <p className={styles.title}>How would you rate the quality and accuracy of this 3D model?</p>
                     <p className={styles.statusText}>{disabledReason || selectedLabel}</p>
                 </div>
-                {isSubmitted && <span className={styles.badge}>Submitted</span>}
             </div>
 
             <div className={styles.ratingGroup}>
