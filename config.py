@@ -33,4 +33,6 @@ class Config:
     )
 
     LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.2"))
+    LLM_TOP_P = float(os.getenv("LLM_TOP_P", "0.9"))
+    LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "2048"))
     LLM_PROVIDER = os.getenv("LLM_PROVIDER", "groq")

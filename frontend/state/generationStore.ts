@@ -13,6 +13,14 @@ export interface GenerationResult {
     username?: string;
 }
 
+export interface ImportedAssetState {
+    id: number;
+    filePath: string;
+    filename: string;
+    originalFilename: string;
+    fileType: string;
+}
+
 // Standard parameters
 const defaultParameters: ModelParameters = {
     category: "Simple Objects",
@@ -28,6 +36,7 @@ interface GenerationStore {
     status: GenerationStatus;
     errorMessage: string | null;
     result: GenerationResult | null;
+    importedAsset: ImportedAssetState | null;
 
     setPrompt: (prompt: string) => void;
     setModifyCommand: (command: string) => void; // ADDED
@@ -35,6 +44,7 @@ interface GenerationStore {
     setStatus: (status: GenerationStatus) => void;
     setErrorMessage: (message: string | null) => void;
     setResult: (result: GenerationResult | null) => void;
+    setImportedAsset: (asset: ImportedAssetState | null) => void;
     reset: () => void;
 }
 
@@ -45,6 +55,7 @@ export const useGenerationStore = create<GenerationStore>((set) => ({
     status: "idle",
     errorMessage: null,
     result: null,
+    importedAsset: null,
 
     setPrompt: (prompt) => set({ prompt }),
     setModifyCommand: (modifyCommand) => set({ modifyCommand }), // ADDED
@@ -52,6 +63,7 @@ export const useGenerationStore = create<GenerationStore>((set) => ({
     setStatus: (status) => set({ status }),
     setErrorMessage: (errorMessage) => set({ errorMessage }),
     setResult: (result) => set({ result }),
+    setImportedAsset: (importedAsset) => set({ importedAsset }),
 
     reset: () =>
         set({
@@ -61,5 +73,6 @@ export const useGenerationStore = create<GenerationStore>((set) => ({
             status: "idle",
             errorMessage: null,
             result: null,
+            importedAsset: null,
         }),
 }));

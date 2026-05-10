@@ -29,6 +29,7 @@ The platform combines:
 - Celery asynchronous processing
 - Modular LLM provider architecture
 - Benchmarking and evaluation tools
+- Configurable LLM generation parameters for tuning output quality
 
 ---
 
@@ -223,6 +224,8 @@ LLM_API_KEY=your_groq_api_key
 
 LLM_PROVIDER=groq
 LLM_TEMPERATURE=0.2
+LLM_TOP_P=0.9
+LLM_MAX_TOKENS=1200
 
 CELERY_BROKER_URL=redis://localhost:6379/0
 CELERY_RESULT_BACKEND=redis://localhost:6379/0
@@ -371,6 +374,27 @@ Each generated asset is scored from 0 to 10 using:
 | Final Export | Usability of exported GLB/GLTF |
 
 ---
+
+## LLM Configuration Parameters
+
+The LLM generation behavior can be adjusted through environment variables.
+
+| Variable | Default | Description |
+|---|---:|---|
+| LLM_TEMPERATURE | 0.2 | Controls randomness. Lower values produce more stable outputs. |
+| LLM_TOP_P | 0.9 | Controls nucleus sampling and limits token selection to likely candidates. |
+| LLM_MAX_TOKENS | 1200 | Controls maximum generated output length. |
+
+Recommended configuration for stable Blender generation:
+
+```env
+LLM_TEMPERATURE=0.2
+LLM_TOP_P=0.9
+LLM_MAX_TOKENS=1200
+```
+```md
+After changing LLM parameters in `.env`, restart both the backend server and Celery worker.
+```
 
 ## Adding a New Benchmark Test
 

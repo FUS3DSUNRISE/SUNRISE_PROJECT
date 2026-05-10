@@ -1,12 +1,13 @@
 "use client";
 
 import type { DragEvent } from "react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { importAsset, type ImportedAssetResponse } from "@/services/api";
 
 const SUPPORTED_EXTENSIONS = [".glb", ".gltf", ".obj"] as const;
 const ACCEPTED_FILE_TYPES = SUPPORTED_EXTENSIONS.join(",");
 
-type UploadStatus = "idle" | "uploading" | "ready";
+type UploadStatus = "idle" | "uploading" | "ready" | "error";
 
 export type LocalAsset = {
     name: string;
@@ -41,6 +42,8 @@ type ImportAssetPanelProps = {
     isLocked?: boolean;
     lockedMessage?: string;
     onAssetSelected?: (asset: LocalAsset) => void;
+    onAssetImported?: (asset: LocalAsset, importedAsset: ImportedAssetResponse) => void;
+    onInterpretationError?: (message: string, metadata?: ImportedAssetResponse["metadata"]) => void;
     onUseAsset?: (asset: LocalAsset) => void;
 };
 
@@ -48,25 +51,18 @@ export default function ImportAssetPanel({
     isLocked = false,
     lockedMessage = "Log in to import assets.",
     onAssetSelected,
+    onAssetImported,
+    onInterpretationError,
     onUseAsset,
 }: ImportAssetPanelProps) {
     const [isExpanded, setIsExpanded] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
     const [selectedAsset, setSelectedAsset] = useState<LocalAsset | null>(null);
     const [uploadStatus, setUploadStatus] = useState<UploadStatus>("idle");
+    const [uploadProgress, setUploadProgress] = useState(0);
     const [validationMessage, setValidationMessage] = useState<string | null>(null);
 
-    useEffect(() => {
-        if (uploadStatus !== "uploading") return;
-
-        const timeoutId = window.setTimeout(() => {
-            setUploadStatus("ready");
-        }, 1200);
-
-        return () => window.clearTimeout(timeoutId);
-    }, [uploadStatus]);
-
-    const handleFile = (file: File | undefined) => {
+    const handleFile = async (file: File | undefined) => {
         if (isLocked) {
             setValidationMessage(lockedMessage);
             return;
@@ -79,6 +75,7 @@ export default function ImportAssetPanel({
         if (error) {
             setSelectedAsset(null);
             setUploadStatus("idle");
+            setUploadProgress(0);
             setValidationMessage(error);
             return;
         }
@@ -93,8 +90,32 @@ export default function ImportAssetPanel({
 
         setSelectedAsset(nextAsset);
         setUploadStatus("uploading");
+        setUploadProgress(0);
         setValidationMessage(null);
         onAssetSelected?.(nextAsset);
+
+        try {
+            const importedAsset = await importAsset(file, {
+                onUploadProgress: setUploadProgress,
+            });
+            setUploadProgress(100);
+            setUploadStatus("ready");
+            onAssetImported?.(nextAsset, importedAsset);
+        } catch (error) {
+            const metadata =
+                error instanceof Error && "metadata" in error
+                    ? (error as Error & { metadata?: ImportedAssetResponse["metadata"] }).metadata
+                    : undefined;
+            const message =
+                error instanceof Error
+                    ? error.message
+                    : "Cannot interpret asset. Please check the file format or integrity.";
+
+            setUploadStatus("error");
+            setUploadProgress(0);
+            setValidationMessage(message);
+            onInterpretationError?.(message, metadata);
+        }
     };
 
     const handleDrop = (event: DragEvent<HTMLLabelElement>) => {
@@ -113,9 +134,11 @@ export default function ImportAssetPanel({
         isLocked
             ? "Login required"
             : uploadStatus === "uploading"
-            ? "Uploading..."
+            ? `Uploading ${uploadProgress}%`
             : uploadStatus === "ready"
-                ? "Ready to import"
+                ? "Uploaded"
+                : uploadStatus === "error"
+                    ? "Import failed"
                 : "No file selected";
 
     return (
@@ -140,7 +163,9 @@ export default function ImportAssetPanel({
                                 ? "bg-green-500/15 text-green-300"
                                 : uploadStatus === "uploading"
                                     ? "bg-yellow-500/15 text-yellow-300"
-                                    : "bg-white/10 text-white/60"
+                                    : uploadStatus === "error"
+                                        ? "bg-red-500/15 text-red-300"
+                                        : "bg-white/10 text-white/60"
                         }`}
                     >
                         {statusLabel}
@@ -235,11 +260,35 @@ export default function ImportAssetPanel({
                                         className={`h-2.5 w-2.5 rounded-full ${
                                             uploadStatus === "ready"
                                                 ? "bg-green-400"
-                                                : "animate-pulse bg-yellow-400"
+                                                : uploadStatus === "error"
+                                                    ? "bg-red-400"
+                                                    : "animate-pulse bg-yellow-400"
                                         }`}
                                     />
                                     Upload status: {statusLabel}
                                 </div>
+
+                                {uploadStatus === "uploading" && (
+                                    <div className="mt-3" aria-label={`Upload progress ${uploadProgress}%`}>
+                                        <div className="h-2 overflow-hidden rounded-full bg-white/10">
+                                            <div
+                                                className="h-full rounded-full bg-[#ff8a2c] transition-[width] duration-200 ease-out"
+                                                style={{ width: `${uploadProgress}%` }}
+                                            />
+                                        </div>
+                                        <div className="mt-2 text-right text-xs font-medium text-white/45">
+                                            {uploadProgress}%
+                                        </div>
+                                    </div>
+                                )}
+
+                                {uploadStatus === "ready" && (
+                                    <div className="mt-3" aria-label="Upload complete">
+                                        <div className="h-2 overflow-hidden rounded-full bg-white/10">
+                                            <div className="h-full w-full rounded-full bg-green-400" />
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             {uploadStatus === "ready" && (
