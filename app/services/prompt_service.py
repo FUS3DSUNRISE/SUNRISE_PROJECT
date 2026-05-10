@@ -24,13 +24,23 @@ class Parameters(BaseModel):
 def build_llm_prompt(prompt_text: str, params: Parameters) -> str:
     s, g, m = params.size, params.geometry, params.material
 
-    return (
-        f"Generate a Blender Python script for: {prompt_text}\n\n"
-        f"STRICT PARAMETERS:\n"
-        f"Size:     width={s.width}m, height={s.height}m, depth={s.depth}m\n"
-        f"Geometry: complexity={g.complexity}/10, smoothness={g.smoothness}/100\n"
-        f"Material: type={m.material_type}, roughness={m.roughness}, metallic={m.metallic}"
+    blender_rules = (
+        f"1. CONDITIONAL ROUTING: Look at the requested object: '{prompt_text}'.\n"
+        f"- IF it is a chair, call: build_chair({s.width}, {s.depth}, {s.height})\n"
+        f"- IF it is a table or desk, call: build_table({s.width}, {s.depth}, {s.height})\n"
+        f"- IF it is a tree or plant, call: build_tree({s.width}, {s.depth}, {s.height})\n"
+        f"- IF IT IS ANYTHING ELSE (Fallback Logic): You MUST fantasize and build it yourself using Minecraft/Roblox logic! Break the object into primitive parts. Call `make_box`, `make_cylinder`, or `make_sphere` multiple times. Scale parts to fit roughly inside W:{s.width}m, H:{s.height}m, D:{s.depth}m. Connect them properly (Upper Z = Lower Z + Lower Height).\n\n"
+        f"2. NO MODIFIERS: DO NOT use boolean modifiers or `apply_modifiers`. Use only the provided functions.\n\n"
+        f"3. MATERIALS: Call `set_material('MatName', R, G, B, {m.roughness}, {m.metallic})` at the end. Invent logical RGB colors for the object.\n\n"
+        f"4. EXPORT: End the script exactly with:\n"
+        "bpy.ops.object.select_all(action='DESELECT')\n"
+        "mesh_objects = [obj for obj in bpy.context.scene.objects if obj.type == 'MESH']\n"
+        "for obj in mesh_objects: obj.select_set(True)\n"
+        "if mesh_objects: bpy.context.view_layer.objects.active = mesh_objects[0]; bpy.ops.object.join()\n"
+        "bpy.ops.export_scene.gltf(filepath='static/models/result.glb', export_format='GLB')\n"
     )
+
+    return f"Write a Blender Python script for: {prompt_text}\n\nRULES:\n{blender_rules}\n\nSTART YOUR RESPONSE EXACTLY WITH: import bpy, math, bmesh"
 
 class PromptService:
     @staticmethod
@@ -40,7 +50,7 @@ class PromptService:
             "Return JSON only:\n"
             "{\n"
             "  'action': 'proceed' | 'clarify' | 'block',\n"
-            "  'reason': 'Explanation why you need clarification or why it is blocked'\n"
+            "  'reason': 'Explanation'\n"
             "}\n"
             "Rules:\n"
             "- Known object: proceed.\n"
@@ -53,7 +63,6 @@ class PromptService:
                 ("system", system_prompt),
                 ("human", prompt_text),
             ])
-
             clean_content = response.content.replace("```json", "").replace("```", "").strip()
             return json.loads(clean_content)
         except Exception:
@@ -61,23 +70,7 @@ class PromptService:
 
     @staticmethod
     def generate_final_prompt(user_prompt, parameters):
-        final_prompt = f"High-quality 3D model of a: {user_prompt}. "
-        
-        # geometry details
-        geom = parameters.get('geometry', {})
-        complexity = geom.get('complexity', 5)
-        if complexity > 7:
-            final_prompt += "Intricate details, high poly count, complex structure. "
-        
-        # add material details
-        mat = parameters.get('material', {})
-        material_type = mat.get('material_type', mat.get('type', 'plastic'))
-        roughness = mat.get('roughness', 0.5)
-        final_prompt += f"Material: {material_type}, roughness: {roughness}. "
-        
-        final_prompt += "Professional studio lighting, 4k render, photorealistic, objective view."
-        
-        return final_prompt
+        return user_prompt
 
     @staticmethod
     def create_final_prompt(user_query, parameters=None):
