@@ -4,6 +4,7 @@ const DEFAULT_API_BASE_URL = "http://localhost:5000";
 const API_BASE_URL =
     process.env.NEXT_PUBLIC_API_BASE_URL?.trim().replace(/\/+$/, "") ||
     DEFAULT_API_BASE_URL;
+const PROMPT_PARAMETER_CACHE_KEY = "scailab-prompt-parameters-v1";
 
 function markBackendUnavailable() {
     useServiceStatusStore
@@ -87,14 +88,89 @@ type ModifyPayload = {
     parameters: FormattedParameters;
 };
 
+type PromptParameterCache = Record<string, FormattedParameters>;
+
+function readPromptParameterCache(): PromptParameterCache {
+    if (typeof window === "undefined") return {};
+
+    try {
+        const rawCache = window.localStorage.getItem(PROMPT_PARAMETER_CACHE_KEY);
+        return rawCache ? JSON.parse(rawCache) as PromptParameterCache : {};
+    } catch {
+        return {};
+    }
+}
+
+function writePromptParameterCache(cache: PromptParameterCache) {
+    if (typeof window === "undefined") return;
+
+    try {
+        window.localStorage.setItem(PROMPT_PARAMETER_CACHE_KEY, JSON.stringify(cache));
+    } catch {
+        // Best-effort UI synchronization. The backend remains the source of truth.
+    }
+}
+
+export function cachePromptParameters(promptId: number, parameters: FormattedParameters | null | undefined) {
+    if (!parameters) return;
+
+    const cache = readPromptParameterCache();
+    cache[String(promptId)] = parameters;
+    writePromptParameterCache(cache);
+}
+
+export function getCachedPromptParameters(promptId: number) {
+    return readPromptParameterCache()[String(promptId)] ?? null;
+}
+
+function removeCachedPromptParameters(promptIds: number[]) {
+    const cache = readPromptParameterCache();
+    promptIds.forEach((promptId) => {
+        delete cache[String(promptId)];
+    });
+    writePromptParameterCache(cache);
+}
+
+function withCachedParameters<T extends { id: number; parameters?: FormattedParameters | null }>(prompt: T): T {
+    return {
+        ...prompt,
+        parameters: prompt.parameters ?? getCachedPromptParameters(prompt.id),
+    };
+}
+
 export type PromptResponse = {
     id: number;
     prompt: string;
     status: string;
     result_path: string | null;
     error_message: string | null;
+    parameters?: FormattedParameters | null;
     user_id?: number;
     category?: string;
+    username?: string;
+    parent_prompt_id?: number | null;
+    modification_command?: string | null;
+    root_prompt_id?: number;
+    created_at?: string | null;
+    version_history?: PromptVersionSummary[];
+};
+
+export type PromptVersionSummary = {
+    id: number;
+    parent_prompt_id?: number | null;
+    prompt?: string;
+    status: string;
+    result_path: string | null;
+    error_message?: string | null;
+    parameters?: FormattedParameters | null;
+    modification_command?: string | null;
+    created_at?: string | null;
+};
+
+export type MyPromptsResponse = {
+    user_id: number;
+    username: string;
+    prompts: PromptVersionSummary[];
 };
 
 type AuthUser = {
@@ -168,14 +244,19 @@ export async function createPrompt(payload: GeneratePayload): Promise<PromptResp
         throw new Error(data.error || data.message || "Failed to create prompt");
     }
 
+    cachePromptParameters(data.id, payload.parameters);
+
     return {
         id: data.id,
         prompt: data.prompt,
         status: data.status,
         result_path: data.result_path ?? null,
         error_message: data.error_message ?? null,
+        parameters: data.parameters ?? payload.parameters,
         user_id: data.user_id,
         category: data.category,
+        modification_command: data.modification_command ?? null,
+        created_at: data.created_at ?? null,
     };
 }
 
@@ -190,14 +271,21 @@ export async function getPrompt(id: number): Promise<PromptResponse> {
 
     const data = await parseJson<PromptResponse>(res);
 
-    return {
+    return withCachedParameters({
         id: data.id,
         prompt: data.prompt,
         status: data.status,
         result_path: data.result_path ?? null,
         error_message: data.error_message ?? null,
+        parameters: data.parameters ?? null,
         user_id: data.user_id,
-    };
+        username: data.username,
+        parent_prompt_id: data.parent_prompt_id ?? null,
+        modification_command: data.modification_command ?? null,
+        root_prompt_id: data.root_prompt_id,
+        created_at: data.created_at ?? null,
+        version_history: (data.version_history ?? []).map(withCachedParameters),
+    });
 }
 
 export async function pollPrompt(
@@ -236,7 +324,13 @@ export async function generateModel(
     onProcessing: () => void = () => { }
 ): Promise<PromptResponse> {
     const created = await createPrompt(payload);
-    return await pollPrompt(created.id, onProcessing);
+    const completed = await pollPrompt(created.id, onProcessing);
+    cachePromptParameters(completed.id, payload.parameters);
+
+    return {
+        ...completed,
+        parameters: completed.parameters ?? payload.parameters,
+    };
 }
 
 // Modify button integration
@@ -260,8 +354,16 @@ export async function modifyModel(
         throw new Error(data.error || data.message || "Failed to modify model");
     }
 
+    cachePromptParameters(data.id, payload.parameters);
+
     // We are waiting for the completion of the new model generation
-    return await pollPrompt(data.id, onProcessing);
+    const completed = await pollPrompt(data.id, onProcessing);
+    cachePromptParameters(completed.id, payload.parameters);
+
+    return {
+        ...completed,
+        parameters: completed.parameters ?? payload.parameters,
+    };
 }
 
 export function getDownloadUrl(id: number) {
@@ -352,18 +454,74 @@ export async function logoutUser() {
     return data;
 }
 
-export async function getMyPrompts() {
+export async function getMyPrompts(): Promise<MyPromptsResponse> {
     const res = await apiFetch("/prompts/me", {
         credentials: "include",
     });
 
-    const data = await parseJson<{ error?: string }>(res);
+    const data = await parseJson<{ error?: string } & MyPromptsResponse>(res);
 
     if (!res.ok) {
         throw new Error(data.error || "Failed to fetch user prompts");
     }
 
-    return data;
+    return {
+        user_id: data.user_id,
+        username: data.username,
+        prompts: (data.prompts ?? []).map(withCachedParameters),
+    };
+}
+
+export async function renamePrompt(
+    promptId: number,
+    prompt: string
+): Promise<PromptResponse> {
+    const res = await apiFetch(`/prompts/${promptId}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ prompt }),
+    });
+
+    const data = await parseJson<{ error?: string } & PromptResponse>(res);
+
+    if (!res.ok) {
+        throw new Error(data.error || "Failed to rename prompt");
+    }
+
+    return {
+        id: data.id,
+        prompt: data.prompt,
+        status: data.status,
+        result_path: data.result_path ?? null,
+        error_message: data.error_message ?? null,
+        parameters: data.parameters ?? null,
+        user_id: data.user_id,
+        username: data.username,
+        parent_prompt_id: data.parent_prompt_id ?? null,
+        created_at: data.created_at ?? null,
+    };
+}
+
+export async function deletePrompt(promptId: number): Promise<{ deleted_ids: number[] }> {
+    const res = await apiFetch(`/prompts/${promptId}`, {
+        method: "DELETE",
+        credentials: "include",
+    });
+
+    const data = await parseJson<{ error?: string; deleted_ids?: number[] }>(res);
+
+    if (!res.ok) {
+        throw new Error(data.error || "Failed to delete prompt");
+    }
+
+    removeCachedPromptParameters(data.deleted_ids ?? [promptId]);
+
+    return {
+        deleted_ids: data.deleted_ids ?? [promptId],
+    };
 }
 
 export async function submitFeedback(

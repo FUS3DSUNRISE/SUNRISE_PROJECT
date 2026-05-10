@@ -10,9 +10,10 @@ import PreviewCanvas from "@/components/PreviewCanvas";
 import FeedbackWidget, { hasStoredFeedback } from "@/components/FeedbackWidget";
 import ImportAssetPanel, { type LocalAsset } from "@/components/ImportAssetPanel";
 import GuidedTour, { type GuidedTourStep } from "@/components/GuidedTour";
+import HistoryPanel from "@/components/HistoryPanel";
 import logo from "../public/logo.png";
-import { getDownloadUrl, getPreviewBlobUrl, modifyModel } from "@/services/api";
-import ParameterPanel from "@/components/ParameterPanel";
+import { cachePromptParameters, getDownloadUrl, getPreviewBlobUrl, modifyModel, type FormattedParameters, type PromptResponse } from "@/services/api";
+import ParameterPanel, { type ModelParameters } from "@/components/ParameterPanel";
 import { useAuthStore } from "@/state/authStore";
 
 const demoModels = [
@@ -104,6 +105,25 @@ function getModelFileName(path: string | null | undefined) {
     return decodeURIComponent(path.split(/[\\/]/).pop() || "Generated model");
 }
 
+function getGenerationStatus(promptStatus: string) {
+    if (promptStatus === "completed") return "success";
+    if (promptStatus === "failed" || promptStatus === "invalid") return "error";
+    if (promptStatus === "queued") return "submitted";
+    return "processing";
+}
+
+function toModelParameters(apiParameters: FormattedParameters): ModelParameters {
+    return {
+        size: apiParameters.size,
+        geometry: apiParameters.geometry,
+        material: {
+            type: apiParameters.material.material_type.toLowerCase(),
+            roughness: apiParameters.material.roughness,
+            metallic: apiParameters.material.metallic,
+        },
+    };
+}
+
 export default function Home() {
     const {
         status,
@@ -117,6 +137,8 @@ export default function Home() {
         modifyCommand,
         setModifyCommand,
         setErrorMessage,
+        setStatus,
+        setResult,
     } = useGenerationStore();
 
     const user = useAuthStore((s) => s.user);
@@ -126,6 +148,7 @@ export default function Home() {
     const [selectedModel, setSelectedModel] = useState("/models/tiger.glb");
     const [showExamples, setShowExamples] = useState(false);
     const [showUserMenu, setShowUserMenu] = useState(false);
+    const [isHistoryOpen, setIsHistoryOpen] = useState(false);
     const [previewBlobUrl, setPreviewBlobUrl] = useState<string | null>(null);
     const [localAsset, setLocalAsset] = useState<(LocalAsset & { previewUrl: string }) | null>(null);
     const [importedAssetName, setImportedAssetName] = useState<string | null>(null);
@@ -156,6 +179,19 @@ export default function Home() {
         window.localStorage.setItem(TOUR_STORAGE_KEY, "true");
         setIsTourOpen(false);
     };
+
+    useEffect(() => {
+        if (!isHistoryOpen) return;
+
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === "Escape") {
+                setIsHistoryOpen(false);
+            }
+        };
+
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, [isHistoryOpen]);
 
     useEffect(() => {
         let objectUrl: string | null = null;
@@ -251,6 +287,30 @@ export default function Home() {
         },
     });
 
+    useEffect(() => {
+        if (!result || result.id === 999 || activeLocalAsset) return;
+
+        cachePromptParameters(result.id, {
+            size: parameters.size,
+            geometry: parameters.geometry,
+            material: {
+                material_type:
+                    parameters.material.type.charAt(0).toUpperCase() +
+                    parameters.material.type.slice(1),
+                roughness: parameters.material.roughness,
+                metallic: parameters.material.metallic,
+            },
+        });
+    }, [
+        activeLocalAsset,
+        parameters.geometry,
+        parameters.material.metallic,
+        parameters.material.roughness,
+        parameters.material.type,
+        parameters.size,
+        result,
+    ]);
+
     const handleModify = async () => {
         if (!modifyCommand.trim()) return;
 
@@ -339,6 +399,30 @@ export default function Home() {
         });
     };
 
+    const handleHistoryPromptSelected = (historyPrompt: PromptResponse) => {
+        clearLocalAsset();
+        setPrompt(historyPrompt.prompt);
+        setModifyCommand("");
+        setErrorMessage(historyPrompt.error_message);
+        setFeedbackSubmittedPromptId(null);
+
+        if (historyPrompt.parameters) {
+            setParameters(toModelParameters(historyPrompt.parameters));
+        }
+
+        setResult({
+            id: historyPrompt.id,
+            prompt: historyPrompt.prompt,
+            status: historyPrompt.status,
+            result_path: historyPrompt.result_path,
+            error_message: historyPrompt.error_message,
+            user_id: historyPrompt.user_id,
+            username: historyPrompt.username,
+        });
+        setStatus(getGenerationStatus(historyPrompt.status));
+        setIsHistoryOpen(false);
+    };
+
     useEffect(() => {
         return () => {
             if (localAsset?.previewUrl) {
@@ -422,13 +506,16 @@ export default function Home() {
                                         </div>
 
                                         <div className="mt-4 border-t border-white/10 pt-4">
-                                            <Link
-                                                href="/history"
-                                                onClick={() => setShowUserMenu(false)}
-                                                className="mb-3 block w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-medium text-white transition hover:bg-white/[0.07]"
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setIsHistoryOpen(true);
+                                                    setShowUserMenu(false);
+                                                }}
+                                                className="mb-3 block w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-left text-sm font-medium text-white transition hover:bg-white/[0.07]"
                                             >
                                                 View History
-                                            </Link>
+                                            </button>
 
                                             <button
                                                 onClick={() => {
@@ -467,6 +554,28 @@ export default function Home() {
                                 data-tour="preview"
                                 className="relative overflow-hidden rounded-[20px] bg-[radial-gradient(circle_at_top,rgba(70,80,255,0.12),transparent_40%),#091028]"
                             >
+                                <button
+                                    type="button"
+                                    onClick={() => setIsHistoryOpen((current) => !current)}
+                                    className="absolute left-5 top-5 z-20 inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-white/85 shadow-[0_10px_24px_rgba(0,0,0,0.22)] transition hover:border-[#ff8a2c]/60 hover:bg-white/[0.07] hover:text-white"
+                                >
+                                    <svg
+                                        aria-hidden="true"
+                                        viewBox="0 0 24 24"
+                                        className="h-4 w-4 text-white/75"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth="2"
+                                    >
+                                        <path d="M3 12a9 9 0 1 0 3-6.7" />
+                                        <path d="M3 4v5h5" />
+                                        <path d="M12 7v5l3 2" />
+                                    </svg>
+                                    History
+                                </button>
+
                                 <div className="absolute left-1/2 top-6 z-10 -translate-x-1/2 rounded-xl border border-white/10 bg-[#2b2d42]/80 px-5 py-3 text-sm text-white/80">
                                     {status === "submitted"
                                         ? "Submitting..."
@@ -795,6 +904,20 @@ export default function Home() {
                         </div>
                     </aside>
                 </section>
+            </div>
+
+            <div className="pointer-events-none fixed bottom-0 left-0 top-[132px] z-[80]">
+                <aside
+                    aria-hidden={!isHistoryOpen}
+                    className={`pointer-events-auto flex h-full w-[430px] max-w-[calc(100vw-24px)] flex-col px-4 pb-4 transition-transform duration-300 ease-out ${isHistoryOpen ? "translate-x-0" : "-translate-x-full"
+                        }`}
+                >
+                    <HistoryPanel
+                        activePromptId={result?.id ?? null}
+                        className="!mt-0 h-full border-white/10 bg-[#050608]"
+                        onSelectPrompt={handleHistoryPromptSelected}
+                    />
+                </aside>
             </div>
 
             {authModal && (
