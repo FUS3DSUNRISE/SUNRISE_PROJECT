@@ -129,8 +129,12 @@ def collect_version_history(prompt):
         versions.append({
             "id": node.id,
             "parent_prompt_id": node.parent_prompt_id,
+            "prompt": node.prompt_text,
+            "modification_command": node.modification_command,
             "status": node.status.value,
             "result_path": node.result_path,
+            "error_message": node.error_message,
+            "parameters": node.parameters,
             "created_at": iso_utc(node.created_at)
         })
 
@@ -168,6 +172,7 @@ def get_prompt(id):
         "user_id": prompt.user_id,
         "username": prompt.user.username,
         "parent_prompt_id": prompt.parent_prompt_id,
+        "modification_command": prompt.modification_command,
         "root_prompt_id": root_prompt.id,
         "created_at": iso_utc(prompt.created_at),
         "version_history": version_history
@@ -196,6 +201,7 @@ def get_my_prompts():
             "status": prompt.status.value,
             "result_path": prompt.result_path,
             "error_message": prompt.error_message,
+            "modification_command": prompt.modification_command,
             "created_at": iso_utc(prompt.created_at)
         })
 

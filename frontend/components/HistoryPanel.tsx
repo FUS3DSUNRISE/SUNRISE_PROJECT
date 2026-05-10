@@ -83,8 +83,6 @@ function formatParametersSummary(item: PromptVersionSummary) {
 
     return [
         `${parameters.size.width}x${parameters.size.height}x${parameters.size.depth}`,
-        `C${parameters.geometry.complexity}`,
-        `S${parameters.geometry.smoothness}`,
         materialType,
     ].join(" - ");
 }
@@ -110,6 +108,7 @@ export default function HistoryPanel({ activePromptId, className = "", onSelectP
                 const searchableText = [
                     item.id,
                     item.prompt,
+                    item.modification_command,
                     item.status,
                     item.result_path,
                     getModelLabel(item),
@@ -171,6 +170,7 @@ export default function HistoryPanel({ activePromptId, className = "", onSelectP
                                         result_path: detail.result_path,
                                         error_message: detail.error_message,
                                         parameters: detail.parameters,
+                                        modification_command: detail.modification_command,
                                         created_at: detail.created_at,
                                     };
                                 })
@@ -221,6 +221,7 @@ export default function HistoryPanel({ activePromptId, className = "", onSelectP
                     result_path: detail.result_path,
                     error_message: detail.error_message,
                     parameters: detail.parameters,
+                    modification_command: detail.modification_command,
                     created_at: detail.created_at,
                 }];
 
@@ -415,6 +416,11 @@ export default function HistoryPanel({ activePromptId, className = "", onSelectP
                                             <p className="mt-1 text-xs text-white/40">
                                                 Prompt ID: {item.id}
                                             </p>
+                                            {item.modification_command && (
+                                                <p className="mt-1 truncate text-xs text-white/55">
+                                                    Modification: {item.modification_command}
+                                                </p>
+                                            )}
                                         </div>
                                         <div className="flex items-center justify-end gap-2">
                                             <span className={`h-2.5 w-2.5 rounded-full ${getStatusDotClass(item.status)}`} />
@@ -514,8 +520,6 @@ export default function HistoryPanel({ activePromptId, className = "", onSelectP
                                                     const versionIsActive = activePromptId === version.id;
                                                     const versionGeneratedAt = formatGeneratedAt(version.created_at);
                                                     const versionParameterSummary = formatParametersSummary(version);
-                                                    const versionLabel = version.modification_command || version.prompt;
-
                                                     return (
                                                         <button
                                                             key={version.id}
@@ -535,10 +539,14 @@ export default function HistoryPanel({ activePromptId, className = "", onSelectP
                                                                 <p className="mt-1 text-xs text-white/40">
                                                                     Prompt ID: {version.id}
                                                                 </p>
-                                                                {versionLabel && (
+                                                                {version.prompt && (
                                                                     <p className="mt-1 truncate text-xs text-white/55">
-                                                                        {version.modification_command ? "Modify: " : "Prompt: "}
-                                                                        {versionLabel}
+                                                                        Prompt: {version.prompt}
+                                                                    </p>
+                                                                )}
+                                                                {version.modification_command && (
+                                                                    <p className="mt-1 truncate text-xs text-white/55">
+                                                                        Modification: {version.modification_command}
                                                                     </p>
                                                                 )}
                                                                 {versionParameterSummary && (
