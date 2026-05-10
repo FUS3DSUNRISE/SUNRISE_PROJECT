@@ -15,7 +15,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { getFeedbackAnalytics, type FeedbackAnalytics, type FeedbackRating } from "@/services/api";
+import { getFeedbackAnalytics, getUserFriendlyErrorMessage, type FeedbackAnalytics, type FeedbackRating } from "@/services/api";
 
 type LoadState = "loading" | "ready" | "error";
 
@@ -74,7 +74,7 @@ export default function AnalyticsPage() {
         setState("ready");
       } catch (err) {
         if (!isMounted) return;
-        setError(err instanceof Error ? err.message : "Could not load analytics");
+        setError(getUserFriendlyErrorMessage(err, "Could not load analytics"));
         setState("error");
       }
     }

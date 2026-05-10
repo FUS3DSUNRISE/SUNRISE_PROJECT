@@ -31,6 +31,7 @@
     display: flex;
     align-items: center;
     gap: 12px;
+    animation: thanksIn 420ms ease both;
 }
 
 .successIcon {
@@ -44,6 +45,7 @@
     border-radius: 999px;
     background: rgba(34, 197, 94, 0.18);
     box-shadow: 0 0 0 1px rgba(74, 222, 128, 0.24);
+    animation: successPulse 1200ms ease-in-out 180ms;
 }
 
 .successIcon::before {
@@ -53,6 +55,35 @@
     border-left: 2px solid #86efac;
     content: "";
     transform: rotate(-45deg) translateY(-1px);
+}
+
+@keyframes thanksIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px) scale(0.98);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes successPulse {
+    0% {
+        box-shadow: 0 0 0 1px rgba(74, 222, 128, 0.24), 0 0 0 0 rgba(74, 222, 128, 0.22);
+        transform: scale(1);
+    }
+
+    45% {
+        box-shadow: 0 0 0 1px rgba(74, 222, 128, 0.3), 0 0 0 10px rgba(74, 222, 128, 0);
+        transform: scale(1.06);
+    }
+
+    100% {
+        box-shadow: 0 0 0 1px rgba(74, 222, 128, 0.24), 0 0 0 0 rgba(74, 222, 128, 0);
+        transform: scale(1);
+    }
 }
 
 .header {

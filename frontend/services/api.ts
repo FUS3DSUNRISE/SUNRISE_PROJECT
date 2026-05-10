@@ -101,6 +101,163 @@ function readPromptParameterCache(): PromptParameterCache {
     }
 }
 
+type BackendErrorPayload = {
+    error?: string;
+    message?: string;
+    detail?: string;
+    error_message?: string | null;
+    code?: string;
+    error_code?: string;
+    status?: string;
+};
+
+export type BackendErrorCode =
+    | "AUTH_REQUIRED"
+    | "AUTH_INVALID"
+    | "EMAIL_IN_USE"
+    | "FORBIDDEN"
+    | "NOT_FOUND"
+    | "VALIDATION_FAILED"
+    | "PROMPT_BLOCKED"
+    | "CLARIFICATION_REQUIRED"
+    | "LLM_OUTPUT_INVALID"
+    | "ASSET_UNINTERPRETABLE"
+    | "ASSET_UNSUPPORTED"
+    | "DUPLICATE_FEEDBACK"
+    | "BACKEND_UNAVAILABLE"
+    | "UNKNOWN";
+
+export class BackendError extends Error {
+    status: number;
+    code: BackendErrorCode;
+    rawMessage: string;
+
+    constructor({
+        status,
+        code,
+        message,
+        rawMessage,
+    }: {
+        status: number;
+        code: BackendErrorCode;
+        message: string;
+        rawMessage: string;
+    }) {
+        super(message);
+        this.name = "BackendError";
+        this.status = status;
+        this.code = code;
+        this.rawMessage = rawMessage;
+    }
+}
+
+const BACKEND_ERROR_MESSAGES: Record<BackendErrorCode, string> = {
+    AUTH_REQUIRED: "Please log in before continuing.",
+    AUTH_INVALID: "The email or password is incorrect.",
+    EMAIL_IN_USE: "An account already exists for that email.",
+    FORBIDDEN: "You do not have permission to use this item.",
+    NOT_FOUND: "We could not find that item. It may have been deleted or moved.",
+    VALIDATION_FAILED: "Some submitted parameters are invalid. Please check the settings and try again.",
+    PROMPT_BLOCKED: "This prompt cannot be generated. Please revise the request and try again.",
+    CLARIFICATION_REQUIRED: "The prompt needs more detail before it can be generated.",
+    LLM_OUTPUT_INVALID: "The AI returned output that could not be converted into a 3D model. Try a simpler or more specific prompt.",
+    ASSET_UNINTERPRETABLE: "The asset could not be interpreted. Try another file or simplify the model.",
+    ASSET_UNSUPPORTED: "That file type is not supported. Please use a GLB, GLTF, or OBJ file.",
+    DUPLICATE_FEEDBACK: "Feedback has already been submitted for this result.",
+    BACKEND_UNAVAILABLE: "The backend is unavailable right now. Check that the API is running and try again.",
+    UNKNOWN: "Something went wrong. Please try again.",
+};
+
+function getPayloadMessage(payload: BackendErrorPayload) {
+    return payload.error || payload.message || payload.detail || payload.error_message || "";
+}
+
+function normalizeErrorCode(value: string | undefined): BackendErrorCode | null {
+    if (!value) return null;
+
+    const normalized = value.trim().toUpperCase().replace(/[^A-Z0-9]+/g, "_");
+    const supportedCodes = new Set<BackendErrorCode>(Object.keys(BACKEND_ERROR_MESSAGES) as BackendErrorCode[]);
+
+    return supportedCodes.has(normalized as BackendErrorCode)
+        ? normalized as BackendErrorCode
+        : null;
+}
+
+function inferBackendErrorCode(status: number, payload: BackendErrorPayload, rawMessage: string): BackendErrorCode {
+    const explicitCode = normalizeErrorCode(payload.error_code || payload.code);
+    if (explicitCode) return explicitCode;
+
+    const lowerMessage = rawMessage.toLowerCase();
+
+    if (lowerMessage.includes("invalid credentials")) return "AUTH_INVALID";
+    if (lowerMessage.includes("email already in use")) return "EMAIL_IN_USE";
+    if (lowerMessage.includes("already submitted")) return "DUPLICATE_FEEDBACK";
+    if (isUnavailableStatus(status)) return "BACKEND_UNAVAILABLE";
+    if (status === 401 || lowerMessage.includes("not authenticated")) return "AUTH_REQUIRED";
+    if (status === 403 || lowerMessage.includes("unauthorized")) return "FORBIDDEN";
+    if (status === 404 || lowerMessage.includes("not found")) return "NOT_FOUND";
+    if (lowerMessage.includes("unsupported file format")) return "ASSET_UNSUPPORTED";
+    if (
+        lowerMessage.includes("validation") ||
+        lowerMessage.includes("field required") ||
+        lowerMessage.includes("value is not") ||
+        lowerMessage.includes("missing command") ||
+        lowerMessage.includes("missing prompt") ||
+        lowerMessage.includes("missing json")
+    ) {
+        return "VALIDATION_FAILED";
+    }
+    if (payload.status === "clarify") return "CLARIFICATION_REQUIRED";
+    if (payload.status === "error" && status === 400) return "PROMPT_BLOCKED";
+    if (
+        lowerMessage.includes("generated code") ||
+        lowerMessage.includes("llm") ||
+        lowerMessage.includes("malformed")
+    ) {
+        return "LLM_OUTPUT_INVALID";
+    }
+    if (
+        lowerMessage.includes("blender") ||
+        lowerMessage.includes("could not interpret") ||
+        lowerMessage.includes("uninterpretable") ||
+        lowerMessage.includes("asset")
+    ) {
+        return "ASSET_UNINTERPRETABLE";
+    }
+
+    return "UNKNOWN";
+}
+
+function createBackendError(res: Response, payload: BackendErrorPayload, fallback: string) {
+    const rawMessage = getPayloadMessage(payload) || fallback;
+    const code = inferBackendErrorCode(res.status, payload, rawMessage);
+
+    return new BackendError({
+        status: res.status,
+        code,
+        message: BACKEND_ERROR_MESSAGES[code] || rawMessage || fallback,
+        rawMessage,
+    });
+}
+
+function createPromptStatusError(prompt: PromptResponse) {
+    const rawMessage = prompt.error_message || "Generation failed";
+    const code = inferBackendErrorCode(500, { error_message: rawMessage }, rawMessage);
+
+    return new BackendError({
+        status: 500,
+        code,
+        message: BACKEND_ERROR_MESSAGES[code] || rawMessage,
+        rawMessage,
+    });
+}
+
+export function getUserFriendlyErrorMessage(error: unknown, fallback = "Something went wrong. Please try again.") {
+    if (error instanceof BackendError) return error.message;
+    if (error instanceof Error) return error.message || fallback;
+    return fallback;
+}
+
 function writePromptParameterCache(cache: PromptParameterCache) {
     if (typeof window === "undefined") return;
 
@@ -238,10 +395,10 @@ export async function createPrompt(payload: GeneratePayload): Promise<PromptResp
         body: JSON.stringify(payload),
     });
 
-    const data = await parseJson<{ error?: string; message?: string } & PromptResponse>(res);
+    const data = await parseJson<BackendErrorPayload & PromptResponse>(res);
 
     if (!res.ok) {
-        throw new Error(data.error || data.message || "Failed to create prompt");
+        throw createBackendError(res, data, "Failed to create prompt");
     }
 
     cachePromptParameters(data.id, payload.parameters);
@@ -265,11 +422,11 @@ export async function getPrompt(id: number): Promise<PromptResponse> {
         credentials: "include",
     });
 
-    if (!res.ok) {
-        throw new Error("Failed to fetch prompt");
-    }
+    const data = await parseJson<BackendErrorPayload & PromptResponse>(res);
 
-    const data = await parseJson<PromptResponse>(res);
+    if (!res.ok) {
+        throw createBackendError(res, data, "Failed to fetch prompt");
+    }
 
     return withCachedParameters({
         id: data.id,
@@ -310,13 +467,18 @@ export async function pollPrompt(
         }
 
         if (status === "failed") {
-            throw new Error(data.error_message || "Generation failed");
+            throw createPromptStatusError(data);
         }
 
         await new Promise((resolve) => setTimeout(resolve, 2000));
     }
 
-    throw new Error("Unexpected prompt status.");
+    throw new BackendError({
+        status: 500,
+        code: "UNKNOWN",
+        message: "The generation ended in an unexpected state. Please try again.",
+        rawMessage: "Unexpected prompt status.",
+    });
 }
 
 export async function generateModel(
@@ -348,10 +510,10 @@ export async function modifyModel(
         body: JSON.stringify(payload),
     });
 
-    const data = await parseJson<{ error?: string; message?: string; id: number }>(res);
+    const data = await parseJson<BackendErrorPayload & { id: number }>(res);
 
     if (!res.ok) {
-        throw new Error(data.error || data.message || "Failed to modify model");
+        throw createBackendError(res, data, "Failed to modify model");
     }
 
     cachePromptParameters(data.id, payload.parameters);
@@ -380,7 +542,8 @@ export async function getPreviewBlobUrl(id: number): Promise<string> {
     });
 
     if (!res.ok) {
-        throw new Error("Failed to fetch preview file");
+        const data = await parseJson<BackendErrorPayload>(res);
+        throw createBackendError(res, data, "Failed to fetch preview file");
     }
 
     const blob = await res.blob();
@@ -400,7 +563,7 @@ export async function signupUser(email: string, password: string): Promise<AuthR
     const data = await parseJson<AuthResponse>(res);
 
     if (!res.ok) {
-        throw new Error(data.error || "Signup failed");
+        throw createBackendError(res, data, "Signup failed");
     }
 
     return data;
@@ -419,7 +582,7 @@ export async function loginUser(email: string, password: string): Promise<AuthRe
     const data = await parseJson<AuthResponse>(res);
 
     if (!res.ok) {
-        throw new Error(data.error || "Login failed");
+        throw createBackendError(res, data, "Login failed");
     }
 
     return data;
@@ -433,7 +596,7 @@ export async function getCurrentUser(): Promise<AuthResponse> {
     const data = await parseJson<AuthResponse>(res);
 
     if (!res.ok) {
-        throw new Error(data.error || "Failed to fetch current user");
+        throw createBackendError(res, data, "Failed to fetch current user");
     }
 
     return data;
@@ -445,10 +608,10 @@ export async function logoutUser() {
         credentials: "include",
     });
 
-    const data = await parseJson<{ error?: string }>(res);
+    const data = await parseJson<BackendErrorPayload>(res);
 
     if (!res.ok) {
-        throw new Error(data.error || "Logout failed");
+        throw createBackendError(res, data, "Logout failed");
     }
 
     return data;
@@ -459,10 +622,10 @@ export async function getMyPrompts(): Promise<MyPromptsResponse> {
         credentials: "include",
     });
 
-    const data = await parseJson<{ error?: string } & MyPromptsResponse>(res);
+    const data = await parseJson<BackendErrorPayload & MyPromptsResponse>(res);
 
     if (!res.ok) {
-        throw new Error(data.error || "Failed to fetch user prompts");
+        throw createBackendError(res, data, "Failed to fetch user prompts");
     }
 
     return {
@@ -485,10 +648,10 @@ export async function renamePrompt(
         body: JSON.stringify({ prompt }),
     });
 
-    const data = await parseJson<{ error?: string } & PromptResponse>(res);
+    const data = await parseJson<BackendErrorPayload & PromptResponse>(res);
 
     if (!res.ok) {
-        throw new Error(data.error || "Failed to rename prompt");
+        throw createBackendError(res, data, "Failed to rename prompt");
     }
 
     return {
@@ -511,10 +674,10 @@ export async function deletePrompt(promptId: number): Promise<{ deleted_ids: num
         credentials: "include",
     });
 
-    const data = await parseJson<{ error?: string; deleted_ids?: number[] }>(res);
+    const data = await parseJson<BackendErrorPayload & { deleted_ids?: number[] }>(res);
 
     if (!res.ok) {
-        throw new Error(data.error || "Failed to delete prompt");
+        throw createBackendError(res, data, "Failed to delete prompt");
     }
 
     removeCachedPromptParameters(data.deleted_ids ?? [promptId]);
@@ -537,14 +700,10 @@ export async function submitFeedback(
         body: JSON.stringify(payload),
     });
 
-    const data = await parseJson<{ error?: string }>(res);
+    const data = await parseJson<BackendErrorPayload>(res);
 
     if (!res.ok) {
-        const error = new Error(data.error || "Failed to submit feedback") as Error & {
-            status?: number;
-        };
-        error.status = res.status;
-        throw error;
+        throw createBackendError(res, data, "Failed to submit feedback");
     }
 
     return data as FeedbackResponse;
@@ -555,10 +714,10 @@ export async function getFeedbackAnalytics(): Promise<FeedbackAnalytics> {
         credentials: "include",
     });
 
-    const data = await parseJson<{ error?: string }>(res);
+    const data = await parseJson<BackendErrorPayload>(res);
 
     if (!res.ok) {
-        throw new Error(data.error || "Failed to fetch feedback analytics");
+        throw createBackendError(res, data, "Failed to fetch feedback analytics");
     }
 
     return data as FeedbackAnalytics;

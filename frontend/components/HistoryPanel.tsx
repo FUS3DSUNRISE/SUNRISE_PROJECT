@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { deletePrompt, getMyPrompts, getPrompt, renamePrompt, type PromptResponse, type PromptVersionSummary } from "@/services/api";
+import { deletePrompt, getMyPrompts, getPrompt, getUserFriendlyErrorMessage, renamePrompt, type PromptResponse, type PromptVersionSummary } from "@/services/api";
 import { useAuthStore } from "@/state/authStore";
 
 type HistorySortOrder = "newest" | "oldest";
@@ -180,7 +180,8 @@ export default function HistoryPanel({ activePromptId, className = "", onSelectP
                 }
             } catch (loadError) {
                 if (isMounted) {
-                    setError(loadError instanceof Error ? loadError.message : "Failed to load prompt history");
+                    const message = getUserFriendlyErrorMessage(loadError, "Failed to load prompt history");
+                    setError(message);
                 }
             } finally {
                 if (isMounted) {
@@ -226,7 +227,8 @@ export default function HistoryPanel({ activePromptId, className = "", onSelectP
             setVersions(nextVersions);
         } catch (loadError) {
             setVersions([]);
-            setError(loadError instanceof Error ? loadError.message : "Failed to load versions");
+            const message = getUserFriendlyErrorMessage(loadError, "Failed to load versions");
+            setError(message);
         } finally {
             setLoadingVersions(false);
         }
@@ -246,7 +248,8 @@ export default function HistoryPanel({ activePromptId, className = "", onSelectP
             const detail = await getPrompt(promptId);
             onSelectPrompt(detail);
         } catch (loadError) {
-            setError(loadError instanceof Error ? loadError.message : "Failed to load this version");
+            const message = getUserFriendlyErrorMessage(loadError, "Failed to load this version");
+            setError(message);
         } finally {
             setLoadingPromptId(null);
         }
@@ -282,7 +285,8 @@ export default function HistoryPanel({ activePromptId, className = "", onSelectP
             );
             setOpenMenuId(null);
         } catch (renameError) {
-            setError(renameError instanceof Error ? renameError.message : "Failed to rename prompt");
+            const message = getUserFriendlyErrorMessage(renameError, "Failed to rename prompt");
+            setError(message);
         } finally {
             setBusyActionPromptId(null);
         }
@@ -315,7 +319,8 @@ export default function HistoryPanel({ activePromptId, className = "", onSelectP
 
             setOpenMenuId(null);
         } catch (deleteError) {
-            setError(deleteError instanceof Error ? deleteError.message : "Failed to delete prompt");
+            const message = getUserFriendlyErrorMessage(deleteError, "Failed to delete prompt");
+            setError(message);
         } finally {
             setBusyActionPromptId(null);
         }

@@ -12,7 +12,7 @@ import ImportAssetPanel, { type LocalAsset } from "@/components/ImportAssetPanel
 import GuidedTour, { type GuidedTourStep } from "@/components/GuidedTour";
 import HistoryPanel from "@/components/HistoryPanel";
 import logo from "../public/logo.png";
-import { cachePromptParameters, getDownloadUrl, getPreviewBlobUrl, modifyModel, type FormattedParameters, type PromptResponse } from "@/services/api";
+import { cachePromptParameters, getDownloadUrl, getPreviewBlobUrl, getUserFriendlyErrorMessage, modifyModel, type FormattedParameters, type PromptResponse } from "@/services/api";
 import ParameterPanel, { type ModelParameters } from "@/components/ParameterPanel";
 import { useAuthStore } from "@/state/authStore";
 
@@ -204,7 +204,9 @@ export default function Home() {
                     if (isMounted) setPreviewBlobUrl(objectUrl);
                 } catch (error) {
                     console.error("Preview load failed:", error);
-                    if (isMounted) setPreviewBlobUrl(null);
+                    if (isMounted) {
+                        setPreviewBlobUrl(null);
+                    }
                 }
             } else if (status === "success" && result && result.id === 999) {
                 if (isMounted) setPreviewBlobUrl(result.result_path);
@@ -345,12 +347,9 @@ export default function Home() {
             setModifyCommand("");
         } catch (error) {
             console.error("Modification failed:", error);
+            const message = getUserFriendlyErrorMessage(error, "Modification failed. Please try again.");
             useGenerationStore.getState().setStatus("error");
-            setErrorMessage(
-                error instanceof Error
-                    ? error.message
-                    : "Modification failed. Please try again."
-            );
+            setErrorMessage(message);
         }
     };
 
