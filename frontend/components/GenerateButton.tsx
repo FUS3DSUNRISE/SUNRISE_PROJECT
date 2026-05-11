@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useGenerationStore } from "@/state/generationStore";
-import { generateModel } from "@/services/api";
+import { generateModel, getUserFriendlyErrorMessage } from "@/services/api";
 import { useAuthStore } from "@/state/authStore";
 
 type GenerateButtonProps = {
@@ -83,13 +83,10 @@ export default function GenerateButton({ disabled = false, onGenerateStart }: Ge
             setStatus("success");
         } catch (error: unknown) {
             console.error("Generation failed:", error);
+            const message = getUserFriendlyErrorMessage(error, "Something went wrong during generation.");
             setResult(null);
             setStatus("error");
-            setErrorMessage(
-                error instanceof Error
-                    ? error.message
-                    : "Something went wrong during generation."
-            );
+            setErrorMessage(message);
         } finally {
             setShowSpinner(false);
         }

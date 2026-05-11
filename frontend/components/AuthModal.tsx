@@ -2,7 +2,7 @@
 
 
 import { useState } from "react";
-import { loginUser, signupUser } from "@/services/api";
+import { getUserFriendlyErrorMessage, loginUser, signupUser } from "@/services/api";
 import { useAuthStore } from "@/state/authStore";
 
 
@@ -47,7 +47,8 @@ export default function AuthModal({ type, onCloseAction }: Props) {
             onCloseAction();
            
         } catch (e: unknown) {
-            setErrorMessage(e instanceof Error ? e.message : "Something went wrong.");
+            const message = getUserFriendlyErrorMessage(e, "Something went wrong.");
+            setErrorMessage(message);
         } finally {
             setLoading(false);
         }

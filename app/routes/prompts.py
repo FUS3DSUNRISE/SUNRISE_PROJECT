@@ -88,7 +88,8 @@ def create_prompt():
         return jsonify({
             "id": prompt.id,
             "status": "clarify",
-            "message": final_reason
+            "message": final_reason,
+            "created_at": iso_utc(prompt.created_at)
         }), 200 
 
     # PROCEED
@@ -110,7 +111,8 @@ def create_prompt():
         "id": prompt.id,
         "prompt": prompt.prompt_text,
         "status": prompt.status.value,
-        "user_id": prompt.user_id
+        "user_id": prompt.user_id,
+        "created_at": iso_utc(prompt.created_at)
     }), 201
 
 def get_root_prompt(prompt):
@@ -127,9 +129,13 @@ def collect_version_history(prompt):
         versions.append({
             "id": node.id,
             "parent_prompt_id": node.parent_prompt_id,
+            "prompt": node.prompt_text,
+            "modification_command": node.modification_command,
             "status": node.status.value,
             "result_path": node.result_path,
-            "created_at": node.created_at.isoformat() if node.created_at else None
+            "error_message": node.error_message,
+            "parameters": node.parameters,
+            "created_at": iso_utc(node.created_at)
         })
 
         children = sorted(node.refined_versions, key=lambda p: p.created_at or 0)
@@ -166,7 +172,9 @@ def get_prompt(id):
         "user_id": prompt.user_id,
         "username": prompt.user.username,
         "parent_prompt_id": prompt.parent_prompt_id,
+        "modification_command": prompt.modification_command,
         "root_prompt_id": root_prompt.id,
+        "created_at": iso_utc(prompt.created_at),
         "version_history": version_history
     }), 200
 
@@ -184,12 +192,17 @@ def get_my_prompts():
 
     prompts = []
     for prompt in user.prompts:
+        if prompt.parent_prompt_id is not None:
+            continue
+
         prompts.append({
             "id": prompt.id,
             "prompt": prompt.prompt_text,
             "status": prompt.status.value,
             "result_path": prompt.result_path,
-            "error_message": prompt.error_message
+            "error_message": prompt.error_message,
+            "modification_command": prompt.modification_command,
+            "created_at": iso_utc(prompt.created_at)
         })
 
     return jsonify({
@@ -304,7 +317,8 @@ def modify_prompt(id):
         "id": new_prompt.id,
         "status": new_prompt.status.value,
         "message": "Modification started",
-        "parent_id": original_prompt.id
+        "parent_id": original_prompt.id,
+        "created_at": iso_utc(new_prompt.created_at)
     }), 201
 
 
