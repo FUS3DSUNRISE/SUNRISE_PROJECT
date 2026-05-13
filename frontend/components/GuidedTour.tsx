@@ -177,7 +177,7 @@ export default function GuidedTour({ steps, isOpen, onClose }: GuidedTourProps) 
                     <button
                         type="button"
                         onClick={closeTour}
-                        className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-xl leading-none text-white/70 transition hover:bg-white/[0.08] hover:text-white"
+                        className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-xl leading-none text-white/70 transition hover:bg-white/[0.08] hover:text-white"
                         aria-label="Close walkthrough"
                     >
                         x
@@ -195,7 +195,7 @@ export default function GuidedTour({ steps, isOpen, onClose }: GuidedTourProps) 
                             key={item.target}
                             type="button"
                             onClick={() => setCurrentStep(index)}
-                            className={`h-2.5 rounded-full transition-all ${
+                            className={`h-2.5 cursor-pointer rounded-full transition-all ${
                                 index === currentStep
                                     ? "w-8 bg-[#ff8a2c]"
                                     : "w-2.5 bg-white/25 hover:bg-white/45"
@@ -210,7 +210,7 @@ export default function GuidedTour({ steps, isOpen, onClose }: GuidedTourProps) 
                         type="button"
                         onClick={() => setCurrentStep((value) => Math.max(value - 1, 0))}
                         disabled={isFirst}
-                        className="rounded-[14px] border border-white/10 px-4 py-3 text-sm font-medium text-white/75 transition hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-40"
+                        className="cursor-pointer rounded-[14px] border border-white/10 px-4 py-3 text-sm font-medium text-white/75 transition hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-40"
                     >
                         Back
                     </button>
@@ -224,7 +224,7 @@ export default function GuidedTour({ steps, isOpen, onClose }: GuidedTourProps) 
 
                             setCurrentStep((value) => value + 1);
                         }}
-                        className="rounded-[14px] bg-[#ff8a2c] px-5 py-3 text-sm font-bold text-black transition hover:bg-[#ff9b4d]"
+                        className="cursor-pointer rounded-[14px] bg-[#ff8a2c] px-5 py-3 text-sm font-bold text-black transition hover:bg-[#ff9b4d]"
                     >
                         {isLast ? "Finish" : "Next"}
                     </button>

@@ -107,7 +107,7 @@ export default function GenerateButton({ disabled = false, onGenerateStart }: Ge
         <button
             onClick={handleGenerate}
             disabled={disabled || status === "submitted" || status === "processing"}
-            className="w-full rounded-[18px] bg-[#ff8a2c] px-8 py-4 text-[20px] font-semibold text-black shadow-[0_12px_30px_rgba(255,138,44,0.28)] transition hover:bg-[#ff9b4d] disabled:cursor-not-allowed disabled:opacity-50"
+            className="w-full cursor-pointer rounded-[18px] bg-[#ff8a2c] px-8 py-4 text-[20px] font-semibold text-black shadow-[0_12px_30px_rgba(255,138,44,0.28)] transition hover:bg-[#ff9b4d] disabled:cursor-not-allowed disabled:opacity-50"
         >
             <span className="flex items-center justify-center gap-3">
                 {showSpinner && (

@@ -146,7 +146,7 @@ export default function ImportAssetPanel({
             <button
                 type="button"
                 onClick={() => setIsExpanded((current) => !current)}
-                className="flex min-h-[70px] w-full items-center justify-between gap-4 px-5 py-3 text-left"
+                className="flex min-h-[70px] w-full cursor-pointer items-center justify-between gap-4 px-5 py-3 text-left"
                 aria-expanded={isExpanded}
             >
                 <div className="min-w-0 flex-1">
@@ -198,8 +198,8 @@ export default function ImportAssetPanel({
                             isLocked
                                 ? "cursor-not-allowed border-white/10 bg-white/[0.02] opacity-70"
                                 : isDragging
-                                ? "border-[#ff8a2c] bg-[#ff8a2c]/10"
-                                : "border-white/15 bg-white/[0.03] hover:border-[#ff8a2c]/70 hover:bg-white/[0.05]"
+                                ? "cursor-pointer border-[#ff8a2c] bg-[#ff8a2c]/10"
+                                : "cursor-pointer border-white/15 bg-white/[0.03] hover:border-[#ff8a2c]/70 hover:bg-white/[0.05]"
                         }`}
                     >
                         <input
@@ -296,7 +296,7 @@ export default function ImportAssetPanel({
                                     type="button"
                                     onClick={() => onUseAsset?.(selectedAsset)}
                                     disabled={isLocked}
-                                    className="mt-4 w-full rounded-[14px] bg-[#ff8a2c] px-4 py-3 text-sm font-semibold text-black transition hover:bg-[#ff9b4d] disabled:cursor-not-allowed disabled:opacity-50"
+                                    className="mt-4 w-full cursor-pointer rounded-[14px] bg-[#ff8a2c] px-4 py-3 text-sm font-semibold text-black transition hover:bg-[#ff9b4d] disabled:cursor-not-allowed disabled:opacity-50"
                                 >
                                     Use this asset
                                 </button>
