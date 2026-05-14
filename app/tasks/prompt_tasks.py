@@ -6,9 +6,11 @@ from app.services.blender.blender_executor import (
 )
 
 import os
+import ast
 import logging
 import traceback
 import time
+import textwrap
 from dotenv import load_dotenv
 
 from worker import celery
@@ -79,12 +81,79 @@ def _prepare_generated_code(code: str, output_path: str) -> str:
     code = code.strip()
 
     if legacy_export_line in code:
-        return code.replace(legacy_export_line, export_line)
+        code = code.replace(legacy_export_line, export_line)
+    elif export_line not in code:
+        code = f"{code}\n\n{export_line}"
+        
+    base_header = """
+    import bpy
+    import math
+    import bmesh
 
-    if export_line in code:
-        return code
+    # Clear the default Blender scene (removes the default Cube, Light, and Camera)
+    for obj in list(bpy.data.objects):
+        bpy.data.objects.remove(obj, do_unlink=True)
 
-    return f"{code}\n\n{export_line}"
+    def make_box(name, w, d, h, x, y, z):
+        verts = [(-w/2,-d/2,0),(w/2,-d/2,0),(w/2,d/2,0),(-w/2,d/2,0),
+                 (-w/2,-d/2,h),(w/2,-d/2,h),(w/2,d/2,h),(-w/2,d/2,h)]
+        faces = [(0,1,2,3),(4,5,6,7),(0,1,5,4),(1,2,6,5),(2,3,7,6),(3,0,4,7)]
+        mesh = bpy.data.meshes.new(name)
+        mesh.from_pydata(verts, [], faces)
+        mesh.update()
+        obj = bpy.data.objects.new(name, mesh)
+        bpy.context.collection.objects.link(obj)
+        obj.location = (x, y, z)
+        return obj
+
+    def make_cylinder(name, r, h, x, y, z, segs=32):
+        bm = bmesh.new()
+        bmesh.ops.create_cone(bm, cap_ends=True, cap_tris=False, segments=segs, radius1=r, radius2=r, depth=h)
+        mesh = bpy.data.meshes.new(name)
+        bm.to_mesh(mesh)
+        bm.free()
+        obj = bpy.data.objects.new(name, mesh)
+        bpy.context.collection.objects.link(obj)
+        obj.location = (x, y, z)
+        return obj
+
+    def make_sphere(name, r, x, y, z, segments=32, rings=16):
+        bm = bmesh.new()
+        bmesh.ops.create_uvsphere(bm, u_segments=segments, v_segments=rings, radius=r)
+        mesh = bpy.data.meshes.new(name)
+        bm.to_mesh(mesh)
+        bm.free()
+        obj = bpy.data.objects.new(name, mesh)
+        bpy.context.collection.objects.link(obj)
+        obj.location = (x, y, z)
+        return obj
+
+    def set_material(name, r, g, b, roughness=0.5, metallic=0.0):
+        mat = bpy.data.materials.new(name)
+        mat.use_nodes = True
+        if 'Principled BSDF' in mat.node_tree.nodes:
+            bsdf = mat.node_tree.nodes['Principled BSDF']
+            bsdf.inputs['Base Color'].default_value = (r, g, b, 1)
+            bsdf.inputs['Roughness'].default_value = roughness
+            bsdf.inputs['Metallic'].default_value = metallic
+        for obj in bpy.context.scene.objects:
+            if obj.type == 'MESH' and not obj.data.materials:
+                obj.data.materials.append(mat)
+                
+    def build_chair(w, d, h):
+        seat_h = h * 0.45; thick = 0.05; leg_w = 0.05
+        make_box("Seat", w, d, thick, 0, 0, seat_h)
+        make_box("Leg1", leg_w, leg_w, seat_h, w/2-leg_w/2, d/2-leg_w/2, 0)
+        make_box("Leg2", leg_w, leg_w, seat_h, -w/2+leg_w/2, d/2-leg_w/2, 0)
+        make_box("Leg3", leg_w, leg_w, seat_h, w/2-leg_w/2, -d/2+leg_w/2, 0)
+        make_box("Leg4", leg_w, leg_w, seat_h, -w/2+leg_w/2, -d/2+leg_w/2, 0)
+        make_box("Back", w, thick, h-seat_h, 0, -d/2+thick/2, seat_h+thick)
+    """
+    
+    # Strip leading whitespace so the Python syntax works perfectly
+    base_header = textwrap.dedent(base_header).strip()
+
+    return f"{base_header}\n\n{code}"
 
 
 def _build_generation_prompt(prompt: PromptRequest, parameters: dict) -> str:
@@ -179,6 +248,7 @@ def _build_fast_track_prompt(prompt: PromptRequest, parameters: dict, fast_track
     return (
         "Revise the existing Blender Python script below.\n"
         "You must update the model based on BOTH the updated parameters AND the modification command.\n\n"
+        "CRITICAL: Keep the code extremely concise. DO NOT define `make_box` or other helper functions, they are pre-loaded.\n\n"
         "If there is any conflict, the parameters must be strictly respected.\n\n"
 
         f"MODIFICATION COMMAND:\n{modification_command}\n\n"
@@ -316,19 +386,23 @@ def process_prompt_task(
             generated_code = _strip_code_fences(llm_output)
 
             logger.info(
-                "Generated code validation | prompt_id=%s contains_import_bpy=%s code_length=%d",
+                "Generated code validation | prompt_id=%s code_length=%d",
                 prompt_id,
-                "import bpy" in generated_code,
                 len(generated_code),
             )
 
-            if "import bpy" not in generated_code:
-                raise LLMError("Generated code does not contain 'import bpy' - likely malformed.")
+            if len(generated_code) < 10:
+                raise LLMError("Generated code is too short - likely malformed.")
 
             output_filename = f"prompt_{prompt_id}.glb"
             output_path = f"static/models/{output_filename}"
 
             generated_code = _prepare_generated_code(generated_code, output_path)
+
+            try:
+                ast.parse(generated_code)
+            except SyntaxError as e:
+                raise LLMError(f"Generated script has syntax errors (likely truncated by token limit): {e}")
 
             prompt.generated_code = generated_code
             prompt.error_message = None
