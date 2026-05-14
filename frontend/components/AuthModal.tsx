@@ -62,7 +62,7 @@ export default function AuthModal({ type, onCloseAction }: Props) {
                     <h2 className="text-2xl font-semibold">
                         {type === "login" ? "Login" : "Create Account"}
                     </h2>
-                    <button onClick={onCloseAction} className="text-white/60 hover:text-white">
+                    <button onClick={onCloseAction} className="cursor-pointer text-white/60 hover:text-white">
                         ✕
                     </button>
                 </div>
@@ -97,7 +97,7 @@ export default function AuthModal({ type, onCloseAction }: Props) {
                     <button
                         onClick={handleSubmit}
                         disabled={loading}
-                        className="mt-4 rounded-lg bg-[#4f5dff] py-3 font-medium hover:bg-[#5d69ff] disabled:opacity-70"
+                        className="mt-4 cursor-pointer rounded-lg bg-[#4f5dff] py-3 font-medium hover:bg-[#5d69ff] disabled:cursor-wait disabled:opacity-70"
                     >
                         {loading
                             ? type === "login"
