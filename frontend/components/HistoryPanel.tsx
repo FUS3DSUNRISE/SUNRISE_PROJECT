@@ -365,7 +365,7 @@ export default function HistoryPanel({ activePromptId, className = "", onSelectP
                         <select
                             value={sortOrder}
                             onChange={(event) => setSortOrder(event.target.value as HistorySortOrder)}
-                            className="h-11 shrink-0 rounded-xl border border-white/10 bg-[#11131f] px-3 text-sm font-medium text-white outline-none transition focus:border-[#ff8a2c]/70"
+                            className="h-11 shrink-0 cursor-pointer rounded-xl border border-white/10 bg-[#11131f] px-3 text-sm font-medium text-white outline-none transition focus:border-[#ff8a2c]/70"
                             aria-label="History order"
                         >
                             <option value="newest">Newest</option>
@@ -406,7 +406,7 @@ export default function HistoryPanel({ activePromptId, className = "", onSelectP
                                 <button
                                     type="button"
                                     onClick={() => loadVersions(item.id)}
-                                    className="block w-full px-4 py-3 pr-12 text-left"
+                                    className="block w-full cursor-pointer px-4 py-3 pr-12 text-left"
                                 >
                                     <div className="flex items-start justify-between gap-4">
                                         <div className="min-w-0">
@@ -483,7 +483,7 @@ export default function HistoryPanel({ activePromptId, className = "", onSelectP
                                         event.stopPropagation();
                                         setOpenMenuId((currentId) => currentId === item.id ? null : item.id);
                                     }}
-                                    className="absolute right-2 top-3 flex h-8 w-8 items-center justify-center rounded-lg text-white/45 transition hover:bg-white/[0.07] hover:text-white"
+                                    className="absolute right-2 top-3 flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-white/45 transition hover:bg-white/[0.07] hover:text-white"
                                     aria-label={`Prompt ${item.id} actions`}
                                 >
                                     <span className="text-lg leading-none">...</span>
@@ -495,7 +495,7 @@ export default function HistoryPanel({ activePromptId, className = "", onSelectP
                                             type="button"
                                             onClick={() => handleDeletePrompt(item)}
                                             disabled={busyActionPromptId === item.id}
-                                            className="block w-full rounded-lg px-3 py-2 text-left text-sm text-red-300 transition hover:bg-white/[0.07] disabled:cursor-wait disabled:opacity-50"
+                                            className="block w-full cursor-pointer rounded-lg px-3 py-2 text-left text-sm text-red-300 transition hover:bg-white/[0.07] disabled:cursor-wait disabled:opacity-50"
                                         >
                                             Delete
                                         </button>
@@ -503,7 +503,7 @@ export default function HistoryPanel({ activePromptId, className = "", onSelectP
                                             type="button"
                                             onClick={() => handleRenamePrompt(item)}
                                             disabled={busyActionPromptId === item.id}
-                                            className="block w-full rounded-lg px-3 py-2 text-left text-sm text-white/80 transition hover:bg-white/[0.07] disabled:cursor-wait disabled:opacity-50"
+                                            className="block w-full cursor-pointer rounded-lg px-3 py-2 text-left text-sm text-white/80 transition hover:bg-white/[0.07] disabled:cursor-wait disabled:opacity-50"
                                         >
                                             Rename
                                         </button>
@@ -526,7 +526,7 @@ export default function HistoryPanel({ activePromptId, className = "", onSelectP
                                                             type="button"
                                                             onClick={() => selectVersion(version.id)}
                                                             disabled={loadingPromptId === version.id}
-                                                            className={`flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-3 text-left transition disabled:cursor-wait disabled:opacity-70 ${versionIsActive
+                                                            className={`flex w-full cursor-pointer items-center justify-between gap-3 rounded-xl border px-3 py-3 text-left transition disabled:cursor-wait disabled:opacity-70 ${versionIsActive
                                                                     ? "border-[#ff8a2c]/80 bg-[#ff8a2c]/10"
                                                                     : "border-white/10 bg-[#0f111a] hover:bg-white/[0.05]"
                                                                 }`}

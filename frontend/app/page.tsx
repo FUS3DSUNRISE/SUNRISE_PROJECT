@@ -169,6 +169,35 @@ function normalizeStringList(value: unknown): string[] {
         .filter((item): item is string => Boolean(item));
 }
 
+type AssetStructureRow = {
+    object?: unknown;
+    mesh?: unknown;
+    materials?: unknown;
+};
+
+function normalizeAssetStructure(value: unknown) {
+    if (!Array.isArray(value)) return [];
+
+    return value
+        .map((item, index) => {
+            if (!item || typeof item !== "object") return null;
+
+            const row = item as AssetStructureRow;
+            const objectName = typeof row.object === "string" && row.object.trim()
+                ? row.object
+                : `Object ${index + 1}`;
+            const meshName = typeof row.mesh === "string" ? row.mesh : "";
+            const materialNames = normalizeStringList(row.materials);
+
+            return {
+                objectName,
+                meshName,
+                materialName: materialNames.join(", "),
+            };
+        })
+        .filter((item): item is { objectName: string; meshName: string; materialName: string } => Boolean(item));
+}
+
 function deriveParametersFromAssetMetadata(
     metadata: AssetMetadata,
     current: ModelParameters
@@ -313,20 +342,23 @@ function hasKnownMetadataName(value: string) {
 }
 
 function getCompactObjectRows(metadata: AssetMetadata) {
+    const structuredRows = normalizeAssetStructure(metadata.structure);
     const objects = normalizeStringList(metadata.objects);
     const meshes = normalizeStringList(metadata.meshes);
     const materials = normalizeStringList(metadata.materials);
     const rowCount = Math.max(objects.length, meshes.length, materials.length);
 
-    if (rowCount === 0) return [];
+    if (structuredRows.length === 0 && rowCount === 0) return [];
 
-    const rawRows = Array.from({ length: rowCount }, (_, index) => {
-        const objectName = objects[index] || meshes[index] || `Object ${index + 1}`;
-        const meshName = meshes[index] || "";
-        const materialName = materials[index] || "";
+    const rawRows = structuredRows.length > 0
+        ? structuredRows
+        : Array.from({ length: rowCount }, (_, index) => {
+            const objectName = objects[index] || meshes[index] || `Object ${index + 1}`;
+            const meshName = meshes[index] || "";
+            const materialName = materials[index] || "";
 
-        return { objectName, meshName, materialName };
-    });
+            return { objectName, meshName, materialName };
+        });
     const hasDetailedRows = rawRows.some((row) => row.meshName || row.materialName);
     const visibleRows = hasDetailedRows
         ? rawRows.filter((row) => row.meshName || row.materialName)
@@ -393,7 +425,7 @@ function AssetDetailsPanel({
                 <button
                     type="button"
                     onClick={onToggle}
-                    className="flex w-full items-center justify-between gap-4 text-left"
+                    className="flex w-full cursor-pointer items-center justify-between gap-4 text-left"
                     aria-expanded={isOpen}
                 >
                     <div className="min-w-0">
@@ -430,7 +462,7 @@ function AssetDetailsPanel({
             <button
                 type="button"
                 onClick={onToggle}
-                className="flex w-full items-start justify-between gap-4 text-left"
+                className="flex w-full cursor-pointer items-start justify-between gap-4 text-left"
                 aria-expanded={isOpen}
             >
                 <div className="min-w-0">
@@ -538,7 +570,7 @@ function ModifyTargetPanel({
                 <button
                     onClick={onModify}
                     disabled={!modifyCommand.trim() || isModifyBusy || !canModifyCurrentTarget}
-                    className="shrink-0 rounded-lg bg-[#ff8a2c] px-6 py-3 text-sm font-bold text-black transition hover:bg-[#ff9b4d] disabled:cursor-not-allowed disabled:opacity-50"
+                    className="shrink-0 cursor-pointer rounded-lg bg-[#ff8a2c] px-6 py-3 text-sm font-bold text-black transition hover:bg-[#ff9b4d] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                     {isModifyBusy ? "Modifying..." : "Modify"}
                 </button>
@@ -821,7 +853,7 @@ export default function Home() {
                 store.setResult(newResult);
                 store.setStatus("success");
                 setBusyModifyTarget(null);
-                setShowModifiedObjectOnly(true);
+                setShowModifiedObjectOnly(false);
                 setModifyCommand("");
             } catch (error) {
                 console.error("Imported asset modification failed:", error);
@@ -867,7 +899,7 @@ export default function Home() {
             store.setResult(newResult);
             store.setStatus("success");
             setBusyModifyTarget(null);
-            setShowModifiedObjectOnly(true);
+            setShowModifiedObjectOnly(false);
             setModifyCommand("");
         } catch (error) {
             console.error("Modification failed:", error);
@@ -875,11 +907,7 @@ export default function Home() {
             useGenerationStore.getState().setStatus("error");
 
             setBusyModifyTarget(null);
-            setErrorMessage(
-                error instanceof Error
-                    ? error.message
-                    : "Modification failed. Please try again."
-            );
+            setErrorMessage(message);
         }
     };
 
@@ -1041,7 +1069,7 @@ export default function Home() {
                         <button
                             type="button"
                             onClick={() => setIsTourOpen(true)}
-                            className="text-sm font-medium text-white/75 transition hover:text-[#ff8a2c]"
+                            className="cursor-pointer text-sm font-medium text-white/75 transition hover:text-[#ff8a2c]"
                         >
                             Walkthrough
                         </button>
@@ -1049,7 +1077,7 @@ export default function Home() {
                             href="https://www.scailab.se/"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="transition hover:text-white"
+                            className="cursor-pointer transition hover:text-white"
                         >
                             Contact
                         </a>
@@ -1058,13 +1086,13 @@ export default function Home() {
                             <div data-tour="auth-actions" className="flex items-center gap-6">
                                 <button
                                     onClick={() => setAuthModal("login")}
-                                    className="transition hover:text-white"
+                                    className="cursor-pointer transition hover:text-white"
                                 >
                                     Login
                                 </button>
                                 <button
                                     onClick={() => setAuthModal("signup")}
-                                    className="rounded-xl border border-[#8a5b22] px-5 py-3 text-[#f2c27c] transition hover:bg-white/5"
+                                    className="cursor-pointer rounded-xl border border-[#8a5b22] px-5 py-3 text-[#f2c27c] transition hover:bg-white/5"
                                 >
                                     Sign Up Free
                                 </button>
@@ -1073,7 +1101,7 @@ export default function Home() {
                             <div className="relative">
                                 <button
                                     onClick={() => setShowUserMenu((prev) => !prev)}
-                                    className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 transition hover:bg-white/[0.07]"
+                                    className="flex cursor-pointer items-center gap-3 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 transition hover:bg-white/[0.07]"
                                 >
                                     <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#ff8a2c] font-semibold text-black">
                                         {userInitial}
@@ -1107,7 +1135,7 @@ export default function Home() {
                                                     setIsHistoryOpen(true);
                                                     setShowUserMenu(false);
                                                 }}
-                                                className="mb-3 block w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-left text-sm font-medium text-white transition hover:bg-white/[0.07]"
+                                                className="mb-3 block w-full cursor-pointer rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-left text-sm font-medium text-white transition hover:bg-white/[0.07]"
                                             >
                                                 View History
                                             </button>
@@ -1126,7 +1154,7 @@ export default function Home() {
                                                     logout();
                                                     setShowUserMenu(false);
                                                 }}
-                                                className="w-full rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm font-medium text-red-300 transition hover:bg-red-500/20"
+                                                className="w-full cursor-pointer rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm font-medium text-red-300 transition hover:bg-red-500/20"
                                             >
                                                 Log out
                                             </button>
@@ -1157,7 +1185,7 @@ export default function Home() {
                                 <button
                                     type="button"
                                     onClick={() => setIsHistoryOpen((current) => !current)}
-                                    className="absolute left-5 top-5 z-20 inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-white/85 shadow-[0_10px_24px_rgba(0,0,0,0.22)] transition hover:border-[#ff8a2c]/60 hover:bg-white/[0.07] hover:text-white"
+                                    className="absolute left-5 top-5 z-20 inline-flex cursor-pointer items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-white/85 shadow-[0_10px_24px_rgba(0,0,0,0.22)] transition hover:border-[#ff8a2c]/60 hover:bg-white/[0.07] hover:text-white"
                                 >
                                     <svg
                                         aria-hidden="true"
@@ -1205,7 +1233,7 @@ export default function Home() {
                             <div data-tour="examples" className="mt-5">
                                 <button
                                     onClick={() => setShowExamples((prev) => !prev)}
-                                    className="rounded-xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-medium text-white/85 transition hover:border-[#ff8a2c]/60 hover:bg-white/[0.07]"
+                                    className="cursor-pointer rounded-xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-medium text-white/85 transition hover:border-[#ff8a2c]/60 hover:bg-white/[0.07]"
                                 >
                                     Load example
                                 </button>
@@ -1223,7 +1251,7 @@ export default function Home() {
                                                         setSelectedModel(model.path);
                                                         setShowExamples(false);
                                                     }}
-                                                    className={`rounded-xl border px-4 py-3 text-sm transition ${selectedModel === model.path
+                                                    className={`cursor-pointer rounded-xl border px-4 py-3 text-sm transition ${selectedModel === model.path
                                                             ? "border-[#ff8a2c] bg-[#ff8a2c] text-black"
                                                             : "border-white/10 bg-white/[0.02] text-white/75 hover:bg-white/[0.05]"
                                                         }`}
@@ -1325,7 +1353,7 @@ export default function Home() {
                                     <button
                                         type="button"
                                         onClick={() => setShowPromptExamples((prev) => !prev)}
-                                        className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-xs font-medium text-white/75 transition hover:border-[#ff8a2c]/60 hover:bg-white/[0.07] hover:text-white"
+                                        className="cursor-pointer rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-xs font-medium text-white/75 transition hover:border-[#ff8a2c]/60 hover:bg-white/[0.07] hover:text-white"
                                     >
                                         {showPromptExamples ? "Hide prompt examples" : "Show prompt examples"}
                                     </button>
@@ -1345,7 +1373,7 @@ export default function Home() {
                                                             setShowPromptExamples(false);
                                                         }}
                                                         disabled={status === "submitted" || status === "processing"}
-                                                        className="w-full rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3 text-left text-sm text-white/75 transition hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-50"
+                                                        className="w-full cursor-pointer rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3 text-left text-sm text-white/75 transition hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-50"
                                                     >
                                                         {example}
                                                     </button>
@@ -1384,7 +1412,7 @@ export default function Home() {
                                                 data-tour="download"
                                                 href={result.id === 999 ? result.result_path ?? "#" : getDownloadUrl(result.id)}
                                                 download={result.id === 999 ? "demo-model.glb" : undefined}
-                                                className="mt-3 flex w-full items-center justify-center rounded-[14px] border border-white/10 bg-[#171927] px-4 py-4 text-base font-medium text-white transition hover:bg-white/5"
+                                                className="mt-3 flex w-full cursor-pointer items-center justify-center rounded-[14px] border border-white/10 bg-[#171927] px-4 py-4 text-base font-medium text-white transition hover:bg-white/5"
                                             >
                                                 ↓ Download
                                             </a>
@@ -1411,7 +1439,7 @@ export default function Home() {
                                                                 data-tour="download"
                                                                 href={result.id === 999 ? result.result_path : getDownloadUrl(result.id)}
                                                                 download={result.id === 999 ? "demo-model.glb" : undefined}
-                                                                className="flex flex-1 items-center justify-center rounded-[14px] border border-white/10 bg-[#171927] px-4 py-4 text-base font-medium text-white transition hover:bg-white/5"
+                                                                className="flex flex-1 cursor-pointer items-center justify-center rounded-[14px] border border-white/10 bg-[#171927] px-4 py-4 text-base font-medium text-white transition hover:bg-white/5"
                                                             >
                                                                 ↓ Download
                                                             </a>
@@ -1469,7 +1497,7 @@ export default function Home() {
                                             });
                                             store.setStatus("success");
                                         }}
-                                        className="text-xs text-green-500/50 hover:text-green-400"
+                                        className="cursor-pointer text-xs text-green-500/50 hover:text-green-400"
                                     >
                                         [Test Success]
                                     </button>
@@ -1478,7 +1506,7 @@ export default function Home() {
                                             clearLocalAsset();
                                             useGenerationStore.getState().setStatus("error");
                                         }}
-                                        className="text-xs text-red-500/50 hover:text-red-400"
+                                        className="cursor-pointer text-xs text-red-500/50 hover:text-red-400"
                                     >
                                         [Test Error]
                                     </button>
@@ -1490,13 +1518,13 @@ export default function Home() {
                                             setErrorMessage(null);
                                             setIsAssetMetadataOpen(false);
                                         }}
-                                        className="text-xs text-gray-500 hover:text-white"
+                                        className="cursor-pointer text-xs text-gray-500 hover:text-white"
                                     >
                                         [Reset]
                                     </button>
                                     <Link
                                         href="/analytics"
-                                        className="text-xs text-[#ff8a2c]/70 hover:text-[#ff8a2c]"
+                                        className="cursor-pointer text-xs text-[#ff8a2c]/70 hover:text-[#ff8a2c]"
                                     >
                                         [Analytics]
                                     </Link>

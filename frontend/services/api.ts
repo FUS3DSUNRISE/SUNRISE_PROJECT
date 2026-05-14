@@ -330,6 +330,12 @@ export type AssetMetadata = {
     [key: string]: unknown;
 };
 
+type AssetStructureItem = {
+    object: string;
+    mesh: string | null;
+    materials: string[];
+};
+
 export type ImportedAssetResponse = {
     id: number;
     filename: string;
@@ -357,18 +363,39 @@ function getFileExtensionFromName(fileName: string) {
 }
 
 function parseGltfJsonMetadata(data: {
-    nodes?: Array<{ name?: string }>;
+    nodes?: Array<{ name?: string; mesh?: number }>;
     meshes?: Array<{ name?: string; primitives?: Array<{ material?: number }> }>;
     materials?: Array<{ name?: string }>;
 }) {
     const nodes = data.nodes ?? [];
     const meshes = data.meshes ?? [];
     const materials = data.materials ?? [];
+    const materialNames = materials.map((material, index) => material.name || `Material_${index}`);
+    const structure: AssetStructureItem[] = nodes.map((node, index) => {
+        const meshIndex = typeof node.mesh === "number" ? node.mesh : null;
+        const mesh = meshIndex !== null ? meshes[meshIndex] : undefined;
+        const meshName = mesh ? mesh.name || `Mesh_${meshIndex}` : null;
+        const meshMaterials = Array.from(new Set(
+            (mesh?.primitives ?? [])
+                .map((primitive) => {
+                    const materialIndex = primitive.material;
+                    return typeof materialIndex === "number" ? materialNames[materialIndex] : null;
+                })
+                .filter((name): name is string => Boolean(name))
+        ));
+
+        return {
+            object: node.name || `Node_${index}`,
+            mesh: meshName,
+            materials: meshMaterials,
+        };
+    });
 
     return {
         objects: nodes.map((node, index) => node.name || `Node_${index}`),
         meshes: meshes.map((mesh, index) => mesh.name || `Mesh_${index}`),
-        materials: materials.map((material, index) => material.name || `Material_${index}`),
+        materials: materialNames,
+        structure,
         object_count: nodes.length,
         mesh_count: meshes.length,
         material_count: materials.length,
