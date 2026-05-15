@@ -123,6 +123,12 @@ SUNRISE_PROJECT/
 
 ---
 
+## Frontend Documentation
+
+Frontend documentation for the implemented system behavior is stored in `docs/`.
+
+---
+
 # Local Setup & Execution Guide
 
 This guide explains how to configure and run the full generation pipeline locally.

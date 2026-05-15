@@ -54,6 +54,13 @@ All API calls go through `services/api.ts`. Network failures and `502`, `503`, o
 
 The retry button checks the backend root endpoint and closes the modal only after the backend responds again.
 
+## Frontend Documentation
+
+The frontend documentation is stored in the repository-level `docs/` directory:
+
+- [`docs/frontend_api_integration.md`](../docs/frontend_api_integration.md) - backend API communication, authentication cookies, generation polling, generated file access, uploads, history, feedback, analytics, and backend availability handling.
+- [`docs/frontend_site_functionality.md`](../docs/frontend_site_functionality.md) - main user-facing site behavior, including login, prompt input, generation, preview, download, modification, imported assets, history, feedback, analytics, and service fallback behavior.
+
 ## Single-User Demo Deployment
 
 1. Deploy or start the backend API first.
