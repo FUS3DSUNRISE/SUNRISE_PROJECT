@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { deletePrompt, getMyPrompts, getPrompt, getUserFriendlyErrorMessage, renamePrompt, type PromptResponse, type PromptVersionSummary } from "@/services/api";
+import { getMyPrompts, getPrompt, getUserFriendlyErrorMessage, type PromptResponse, type PromptVersionSummary } from "@/services/api";
 import { useAuthStore } from "@/state/authStore";
 
 type HistorySortOrder = "newest" | "oldest";
@@ -94,11 +94,9 @@ export default function HistoryPanel({ activePromptId, className = "", onSelectP
     const [expandedPromptId, setExpandedPromptId] = useState<number | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [sortOrder, setSortOrder] = useState<HistorySortOrder>("newest");
-    const [openMenuId, setOpenMenuId] = useState<number | null>(null);
     const [loadingPrompts, setLoadingPrompts] = useState(false);
     const [loadingVersions, setLoadingVersions] = useState(false);
     const [loadingPromptId, setLoadingPromptId] = useState<number | null>(null);
-    const [busyActionPromptId, setBusyActionPromptId] = useState<number | null>(null);
     const [error, setError] = useState<string | null>(null);
 
     const visiblePrompts = useMemo(() => {
@@ -201,13 +199,11 @@ export default function HistoryPanel({ activePromptId, className = "", onSelectP
         if (expandedPromptId === promptId) {
             setExpandedPromptId(null);
             setVersions([]);
-            setOpenMenuId(null);
             return;
         }
 
         try {
             setExpandedPromptId(promptId);
-            setOpenMenuId(null);
             setLoadingVersions(true);
             setError(null);
             const detail = await getPrompt(promptId);
@@ -253,77 +249,6 @@ export default function HistoryPanel({ activePromptId, className = "", onSelectP
             setError(message);
         } finally {
             setLoadingPromptId(null);
-        }
-    };
-
-    const handleRenamePrompt = async (item: PromptVersionSummary) => {
-        const nextName = window.prompt("Rename generation", getPromptTitle(item));
-        const trimmedName = nextName?.trim();
-
-        if (!trimmedName || trimmedName === getPromptTitle(item)) {
-            setOpenMenuId(null);
-            return;
-        }
-
-        try {
-            setBusyActionPromptId(item.id);
-            setError(null);
-            const renamedPrompt = await renamePrompt(item.id, trimmedName);
-
-            setPrompts((currentPrompts) =>
-                currentPrompts.map((promptItem) =>
-                    promptItem.id === item.id
-                        ? { ...promptItem, prompt: renamedPrompt.prompt }
-                        : promptItem
-                )
-            );
-            setVersions((currentVersions) =>
-                currentVersions.map((version) =>
-                    version.id === item.id
-                        ? { ...version, prompt: renamedPrompt.prompt }
-                        : version
-                )
-            );
-            setOpenMenuId(null);
-        } catch (renameError) {
-            const message = getUserFriendlyErrorMessage(renameError, "Failed to rename prompt");
-            setError(message);
-        } finally {
-            setBusyActionPromptId(null);
-        }
-    };
-
-    const handleDeletePrompt = async (item: PromptVersionSummary) => {
-        const confirmed = window.confirm(`Delete "${getPromptTitle(item)}" and its versions?`);
-
-        if (!confirmed) {
-            setOpenMenuId(null);
-            return;
-        }
-
-        try {
-            setBusyActionPromptId(item.id);
-            setError(null);
-            const result = await deletePrompt(item.id);
-            const deletedIds = new Set(result.deleted_ids);
-
-            setPrompts((currentPrompts) =>
-                currentPrompts.filter((promptItem) => !deletedIds.has(promptItem.id))
-            );
-            setVersions((currentVersions) =>
-                currentVersions.filter((version) => !deletedIds.has(version.id))
-            );
-
-            if (expandedPromptId && deletedIds.has(expandedPromptId)) {
-                setExpandedPromptId(null);
-            }
-
-            setOpenMenuId(null);
-        } catch (deleteError) {
-            const message = getUserFriendlyErrorMessage(deleteError, "Failed to delete prompt");
-            setError(message);
-        } finally {
-            setBusyActionPromptId(null);
         }
     };
 
@@ -406,7 +331,7 @@ export default function HistoryPanel({ activePromptId, className = "", onSelectP
                                 <button
                                     type="button"
                                     onClick={() => loadVersions(item.id)}
-                                    className="block w-full cursor-pointer px-4 py-3 pr-12 text-left"
+                                    className="block w-full cursor-pointer px-4 py-3 text-left"
                                 >
                                     <div className="flex items-start justify-between gap-4">
                                         <div className="min-w-0">
@@ -476,39 +401,6 @@ export default function HistoryPanel({ activePromptId, className = "", onSelectP
                                         </span>
                                     </div>
                                 </button>
-
-                                <button
-                                    type="button"
-                                    onClick={(event) => {
-                                        event.stopPropagation();
-                                        setOpenMenuId((currentId) => currentId === item.id ? null : item.id);
-                                    }}
-                                    className="absolute right-2 top-3 flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-white/45 transition hover:bg-white/[0.07] hover:text-white"
-                                    aria-label={`Prompt ${item.id} actions`}
-                                >
-                                    <span className="text-lg leading-none">...</span>
-                                </button>
-
-                                {openMenuId === item.id && (
-                                    <div className="absolute right-2 top-12 z-30 w-32 rounded-xl border border-white/10 bg-[#0f1320] p-1 shadow-2xl">
-                                        <button
-                                            type="button"
-                                            onClick={() => handleDeletePrompt(item)}
-                                            disabled={busyActionPromptId === item.id}
-                                            className="block w-full cursor-pointer rounded-lg px-3 py-2 text-left text-sm text-red-300 transition hover:bg-white/[0.07] disabled:cursor-wait disabled:opacity-50"
-                                        >
-                                            Delete
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => handleRenamePrompt(item)}
-                                            disabled={busyActionPromptId === item.id}
-                                            className="block w-full cursor-pointer rounded-lg px-3 py-2 text-left text-sm text-white/80 transition hover:bg-white/[0.07] disabled:cursor-wait disabled:opacity-50"
-                                        >
-                                            Rename
-                                        </button>
-                                    </div>
-                                )}
 
                                 {isExpanded && (
                                     <div className="border-t border-white/10 px-4 pb-4 pt-3">

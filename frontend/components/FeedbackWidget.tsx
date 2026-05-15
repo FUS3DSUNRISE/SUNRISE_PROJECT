@@ -8,6 +8,14 @@ type FeedbackWidgetProps = {
     promptId: number;
     disabledReason?: string;
     onSubmitted?: () => void;
+    isOpen?: boolean;
+    onOpenChange?: (isOpen: boolean) => void;
+    hideLauncher?: boolean;
+};
+
+type FeedbackLauncherProps = {
+    onClick: () => void;
+    placement?: "overlay" | "inline";
 };
 
 type SubmitState = "idle" | "submitting" | "submitted" | "error";
@@ -25,7 +33,30 @@ const ratingFromScore = (score: number): FeedbackRating => {
     return "neutral";
 };
 
-export default function FeedbackWidget({ promptId, disabledReason, onSubmitted }: FeedbackWidgetProps) {
+export function FeedbackLauncher({ onClick, placement = "overlay" }: FeedbackLauncherProps) {
+    return (
+        <button
+            type="button"
+            data-tour="feedback"
+            className={`${styles.feedbackLauncher} ${placement === "inline" ? styles.inline : ""}`}
+            onClick={onClick}
+            aria-label="Add feedback for this generated model"
+        >
+            <span className={styles.feedbackIcon} aria-hidden="true" />
+            <span>Add feedback</span>
+        </button>
+    );
+}
+
+export default function FeedbackWidget({
+    promptId,
+    disabledReason,
+    onSubmitted,
+    isOpen: controlledIsOpen,
+    onOpenChange,
+    hideLauncher = false,
+}: FeedbackWidgetProps) {
+    const [uncontrolledIsOpen, setUncontrolledIsOpen] = useState(false);
     const [qualityScore, setQualityScore] = useState<number | null>(null);
     const [accuracyScore, setAccuracyScore] = useState<number | null>(null);
     const [isCommentOpen, setIsCommentOpen] = useState(false);
@@ -37,6 +68,7 @@ export default function FeedbackWidget({ promptId, disabledReason, onSubmitted }
     const [message, setMessage] = useState<string | null>(null);
 
     const isSubmitted = submitState === "submitted";
+    const isOpen = controlledIsOpen ?? uncontrolledIsOpen;
     const isShowingThanks = isSubmitted && thankYouState !== "hidden";
     const isDemo = Boolean(disabledReason);
     const isBlocked = submitState === "submitting" || isSubmitted || isDemo;
@@ -62,6 +94,14 @@ export default function FeedbackWidget({ promptId, disabledReason, onSubmitted }
 
     if (isSubmitted && !isShowingThanks) {
         return null;
+    }
+
+    if (!isOpen && !isShowingThanks) {
+        if (hideLauncher) return null;
+        return <FeedbackLauncher onClick={() => {
+            setUncontrolledIsOpen(true);
+            onOpenChange?.(true);
+        }} />;
     }
 
     const handleSubmit = async () => {
@@ -202,7 +242,7 @@ export default function FeedbackWidget({ promptId, disabledReason, onSubmitted }
                                     aria-controls={`feedback-comment-${promptId}`}
                                 >
                                     <span className={styles.feedbackIcon} aria-hidden="true" />
-                                    <span>Add feedback (optional)</span>
+                                    <span>Add comment (optional)</span>
                                 </button>
 
                                 {isCommentOpen && (

@@ -7,7 +7,7 @@ import { useGenerationStore } from "@/state/generationStore";
 import GenerateButton from "@/components/GenerateButton";
 import AuthModal from "@/components/AuthModal";
 import PreviewCanvas from "@/components/PreviewCanvas";
-import FeedbackWidget, { hasStoredFeedback } from "@/components/FeedbackWidget";
+import FeedbackWidget, { FeedbackLauncher, hasStoredFeedback } from "@/components/FeedbackWidget";
 import ImportAssetPanel, { type LocalAsset } from "@/components/ImportAssetPanel";
 import GuidedTour, { type GuidedTourStep } from "@/components/GuidedTour";
 import HistoryPanel from "@/components/HistoryPanel";
@@ -39,7 +39,7 @@ const demoModels = [
 ];
 
 const MAX_PROMPT_LENGTH = 120;
-const TOUR_STORAGE_KEY = "scailab-guided-tour-seen-v3";
+const TOUR_STORAGE_KEY = "scailab-guided-tour-seen-v4";
 
 const promptExamples = [
     "Create a simple wooden pallet",
@@ -64,9 +64,9 @@ const guidedTourSteps: GuidedTourStep[] = [
         body: "This field displays the active object. Use the cursor to rotate the model and assess the results.",
     },
     {
-        target: "[data-tour='feedback']",
-        title: "Rate the generated model",
-        body: "After reviewing the result, score its quality and accuracy. You can also add an optional comment for analytics.",
+        target: "[data-tour='history']",
+        title: "Open your history",
+        body: "Use History to return to saved generations, inspect refinement versions, and load an earlier result back into the workspace.",
     },
     {
         target: "[data-tour='examples']",
@@ -74,9 +74,9 @@ const guidedTourSteps: GuidedTourStep[] = [
         body: "Use the ready-made model for practice. It’s quick and easy, and lets you try out all the features without having to create your own object from scratch.",
     },
     {
-        target: "[data-tour='import']",
-        title: "Upload your own model",
-        body: "Authorised users can import files. Once uploaded, you will be able to modify the object using text queries.",
+        target: "[data-tour='feedback']",
+        title: "Rate the generated model",
+        body: "After reviewing the result, score its quality and accuracy. You can also add an optional comment for analytics.",
     },
     {
         target: "[data-tour='prompt']",
@@ -89,9 +89,19 @@ const guidedTourSteps: GuidedTourStep[] = [
         body: "Submit your request to view the result in 3D. As soon as the model is ready, you can download it or make further edits using the new features that will appear below.",
     },
     {
+        target: "[data-tour='import']",
+        title: "Upload your own model",
+        body: "Authorised users can import files. Once uploaded, you will be able to modify the object using text queries.",
+    },
+    {
         target: "[data-tour='download']",
         title: "Download the finished file",
         body: "When the asset is ready, use this button to save the generated GLB file locally.",
+    },
+    {
+        target: "[data-tour='metadata']",
+        title: "Review asset metadata",
+        body: "Metadata summarizes the uploaded or generated asset, including its object structure and key file properties.",
     },
     
     {
@@ -421,7 +431,10 @@ function AssetDetailsPanel({
 
     if (errorMessage) {
         return (
-            <section className="rounded-[18px] border border-red-500/30 bg-red-500/10 px-5 py-4">
+            <section
+                data-tour="metadata"
+                className="rounded-[18px] border border-red-500/30 bg-red-500/10 px-5 py-4"
+            >
                 <button
                     type="button"
                     onClick={onToggle}
@@ -458,7 +471,10 @@ function AssetDetailsPanel({
     const properties = getMetadataProperties(activeMetadata, objectRows.length);
 
     return (
-        <section className="rounded-[18px] border border-white/10 bg-[#11131f]/70 px-5 py-4">
+        <section
+            data-tour="metadata"
+            className="rounded-[18px] border border-white/10 bg-[#11131f]/70 px-5 py-4"
+        >
             <button
                 type="button"
                 onClick={onToggle}
@@ -617,6 +633,7 @@ export default function Home() {
     const [exampleIndex, setExampleIndex] = useState(0);
     const [showPromptExamples, setShowPromptExamples] = useState(false);
     const [feedbackSubmittedPromptId, setFeedbackSubmittedPromptId] = useState<number | null>(null);
+    const [feedbackOpenPromptId, setFeedbackOpenPromptId] = useState<number | null>(null);
 
     useEffect(() => {
         const hasSeenTour = window.localStorage.getItem(TOUR_STORAGE_KEY);
@@ -759,6 +776,10 @@ export default function Home() {
 
         if (step.target === "[data-tour='download']") {
             return canDownloadCurrentResult;
+        }
+
+        if (step.target === "[data-tour='metadata']") {
+            return Boolean(assetMetadata || assetInterpretationError);
         }
 
         if (step.target === "[data-tour='feedback']") {
@@ -1069,7 +1090,7 @@ export default function Home() {
                         <button
                             type="button"
                             onClick={() => setIsTourOpen(true)}
-                            className="cursor-pointer text-sm font-medium text-white/75 transition hover:text-[#ff8a2c]"
+                            className="cursor-pointer text-white/75 transition hover:text-[#ff8a2c]"
                         >
                             Walkthrough
                         </button>
@@ -1077,7 +1098,7 @@ export default function Home() {
                             href="https://www.scailab.se/"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="cursor-pointer transition hover:text-white"
+                            className="cursor-pointer text-white/75 transition hover:text-[#ff8a2c]"
                         >
                             Contact
                         </a>
@@ -1086,13 +1107,13 @@ export default function Home() {
                             <div data-tour="auth-actions" className="flex items-center gap-6">
                                 <button
                                     onClick={() => setAuthModal("login")}
-                                    className="cursor-pointer transition hover:text-white"
+                                    className="cursor-pointer text-white/75 transition hover:text-[#ff8a2c]"
                                 >
                                     Login
                                 </button>
                                 <button
                                     onClick={() => setAuthModal("signup")}
-                                    className="cursor-pointer rounded-xl border border-[#8a5b22] px-5 py-3 text-[#f2c27c] transition hover:bg-white/5"
+                                    className="cursor-pointer rounded-xl border border-[#8a5b22] px-5 py-3 text-[#f2c27c] transition hover:border-[#ff8a2c]/60 hover:text-[#ff8a2c]"
                                 >
                                     Sign Up Free
                                 </button>
@@ -1184,6 +1205,7 @@ export default function Home() {
                             >
                                 <button
                                     type="button"
+                                    data-tour="history"
                                     onClick={() => setIsHistoryOpen((current) => !current)}
                                     className="absolute left-5 top-5 z-20 inline-flex cursor-pointer items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-white/85 shadow-[0_10px_24px_rgba(0,0,0,0.22)] transition hover:border-[#ff8a2c]/60 hover:bg-white/[0.07] hover:text-white"
                                 >
@@ -1220,6 +1242,9 @@ export default function Home() {
                                     <FeedbackWidget
                                         key={result.id}
                                         promptId={result.id}
+                                        isOpen={feedbackOpenPromptId === result.id}
+                                        hideLauncher
+                                        onOpenChange={(isOpen) => setFeedbackOpenPromptId(isOpen ? result.id : null)}
                                         onSubmitted={() => setFeedbackSubmittedPromptId(result.id)}
                                         disabledReason={
                                             result.id === 999
@@ -1230,37 +1255,46 @@ export default function Home() {
                                 )}
                             </div>
 
-                            <div data-tour="examples" className="mt-5">
-                                <button
-                                    onClick={() => setShowExamples((prev) => !prev)}
-                                    className="cursor-pointer rounded-xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-medium text-white/85 transition hover:border-[#ff8a2c]/60 hover:bg-white/[0.07]"
-                                >
-                                    Load example
-                                </button>
+                            <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                                <div data-tour="examples" className="relative">
+                                    <button
+                                        onClick={() => setShowExamples((prev) => !prev)}
+                                        className="cursor-pointer rounded-xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-medium text-white/85 transition hover:border-[#ff8a2c]/60 hover:bg-white/[0.07]"
+                                    >
+                                        Load example
+                                    </button>
 
-                                {showExamples && (
-                                    <div className="absolute z-30 mt-3 w-[320px] rounded-2xl border border-white/10 bg-[#0f1320]/95 p-4 shadow-2xl backdrop-blur-xl">
-                                        <div className="mb-3 text-sm font-semibold text-white">
-                                            Demo examples
+                                    {showExamples && (
+                                        <div className="absolute z-30 mt-3 w-[320px] rounded-2xl border border-white/10 bg-[#0f1320]/95 p-4 shadow-2xl backdrop-blur-xl">
+                                            <div className="mb-3 text-sm font-semibold text-white">
+                                                Demo examples
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                {demoModels.map((model) => (
+                                                    <button
+                                                        key={model.path}
+                                                        onClick={() => {
+                                                            setSelectedModel(model.path);
+                                                            setShowExamples(false);
+                                                        }}
+                                                        className={`cursor-pointer rounded-xl border px-4 py-3 text-sm transition ${selectedModel === model.path
+                                                                ? "border-[#ff8a2c] bg-[#ff8a2c] text-black"
+                                                                : "border-white/10 bg-white/[0.02] text-white/75 hover:bg-white/[0.05]"
+                                                            }`}
+                                                    >
+                                                        {model.label}
+                                                    </button>
+                                                ))}
+                                            </div>
                                         </div>
-                                        <div className="grid grid-cols-2 gap-3">
-                                            {demoModels.map((model) => (
-                                                <button
-                                                    key={model.path}
-                                                    onClick={() => {
-                                                        setSelectedModel(model.path);
-                                                        setShowExamples(false);
-                                                    }}
-                                                    className={`cursor-pointer rounded-xl border px-4 py-3 text-sm transition ${selectedModel === model.path
-                                                            ? "border-[#ff8a2c] bg-[#ff8a2c] text-black"
-                                                            : "border-white/10 bg-white/[0.02] text-white/75 hover:bg-white/[0.05]"
-                                                        }`}
-                                                >
-                                                    {model.label}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
+                                    )}
+                                </div>
+
+                                {canRateCurrentResult && feedbackOpenPromptId !== result?.id && (
+                                    <FeedbackLauncher
+                                        placement="inline"
+                                        onClick={() => result?.id && setFeedbackOpenPromptId(result.id)}
+                                    />
                                 )}
                             </div>
                         </div>
