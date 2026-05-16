@@ -128,7 +128,38 @@ def _prepare_generated_code(code: str, output_path: str) -> str:
         obj.location = (x, y, z)
         return obj
 
-    def set_material(name, r, g, b, roughness=0.5, metallic=0.0):
+    def make_cone(name, r, h, x, y, z, segs=32):
+        bm = bmesh.new()
+        bmesh.ops.create_cone(bm, cap_ends=True, cap_tris=False, segments=segs, radius1=r, radius2=0, depth=h)
+        mesh = bpy.data.meshes.new(name)
+        bm.to_mesh(mesh)
+        bm.free()
+        obj = bpy.data.objects.new(name, mesh)
+        bpy.context.collection.objects.link(obj)
+        obj.location = (x, y, z)
+        return obj
+
+    def make_torus(name, r_major, r_minor, x, y, z, major_segs=32, minor_segs=12):
+        try:
+            m_segs = max(3, int(major_segs))
+            n_segs = max(3, int(minor_segs))
+        except (ValueError, TypeError):
+            m_segs, n_segs = 32, 12
+            
+        bpy.ops.mesh.primitive_torus_add(
+            major_radius=r_major, 
+            minor_radius=r_minor, 
+            major_segments=m_segs, 
+            minor_segments=n_segs, 
+            location=(x, y, z)
+        )
+        obj = bpy.context.active_object
+        obj.name = name
+        if obj.data:
+            obj.data.name = name
+        return obj
+
+    def set_material(name, r, g, b, roughness=0.5, metallic=0.0, target_obj_name=None):
         mat = bpy.data.materials.new(name)
         mat.use_nodes = True
         if 'Principled BSDF' in mat.node_tree.nodes:
@@ -136,9 +167,16 @@ def _prepare_generated_code(code: str, output_path: str) -> str:
             bsdf.inputs['Base Color'].default_value = (r, g, b, 1)
             bsdf.inputs['Roughness'].default_value = roughness
             bsdf.inputs['Metallic'].default_value = metallic
-        for obj in bpy.context.scene.objects:
-            if obj.type == 'MESH' and not obj.data.materials:
+            
+        if target_obj_name and target_obj_name in bpy.data.objects:
+            obj = bpy.data.objects[target_obj_name]
+            if obj.type == 'MESH':
+                obj.data.materials.clear()
                 obj.data.materials.append(mat)
+        else:
+            for obj in bpy.context.scene.objects:
+                if obj.type == 'MESH' and not obj.data.materials:
+                    obj.data.materials.append(mat)
                 
     def build_chair(w, d, h):
         seat_h = h * 0.45; thick = 0.05; leg_w = 0.05
@@ -148,6 +186,22 @@ def _prepare_generated_code(code: str, output_path: str) -> str:
         make_box("Leg3", leg_w, leg_w, seat_h, w/2-leg_w/2, -d/2+leg_w/2, 0)
         make_box("Leg4", leg_w, leg_w, seat_h, -w/2+leg_w/2, -d/2+leg_w/2, 0)
         make_box("Back", w, thick, h-seat_h, 0, -d/2+thick/2, seat_h+thick)
+
+    def build_table(w, d, h):
+        thick = 0.05
+        leg_w = 0.08
+        make_box("Top", w, d, thick, 0, 0, h-thick)
+        make_box("Leg1", leg_w, leg_w, h-thick, w/2-leg_w, d/2-leg_w, 0)
+        make_box("Leg2", leg_w, leg_w, h-thick, -w/2+leg_w, d/2-leg_w, 0)
+        make_box("Leg3", leg_w, leg_w, h-thick, w/2-leg_w, -d/2+leg_w, 0)
+        make_box("Leg4", leg_w, leg_w, h-thick, -w/2+leg_w, -d/2+leg_w, 0)
+
+    def build_tree(w, d, h):
+        trunk_h = h * 0.6
+        trunk_r = w * 0.1
+        foliage_r = w * 0.5
+        make_cylinder("Trunk", trunk_r, trunk_h, 0, 0, 0)
+        make_sphere("Foliage", foliage_r, 0, 0, trunk_h + foliage_r*0.2)
     """
     
     # Strip leading whitespace so the Python syntax works perfectly
@@ -211,7 +265,8 @@ def _build_imported_asset_modification_prompt(
         "Required behavior:\n"
         "- Import the existing asset from the file path above.\n"
         "- Keep the imported asset structure.\n"
-        "- Modify only existing mesh objects when changing geometry or materials.\n"
+        "- Modify only existing mesh objects using transformations (e.g., obj.scale, obj.location, obj.rotation_euler) or material changes.\n"
+        "- NEVER create new objects (do not use make_box, make_cylinder, make_cone, make_torus, etc.) unless explicitly commanded to ADD a new part.\n"
         "- Do not apply materials to lights, cameras, empties or non-mesh objects.\n"
         "- When iterating over objects, always check: if obj.type == 'MESH'.\n"
         "- Before accessing obj.data.materials, always check that obj.type == 'MESH'.\n"
@@ -249,6 +304,8 @@ def _build_fast_track_prompt(prompt: PromptRequest, parameters: dict, fast_track
         "Revise the existing Blender Python script below.\n"
         "You must update the model based on BOTH the updated parameters AND the modification command.\n\n"
         "CRITICAL: Keep the code extremely concise. DO NOT define `make_box` or other helper functions, they are pre-loaded.\n\n"
+        "CRITICAL: To change the size, shape, or position of a part, you MUST modify the arguments of the EXISTING function calls (w, d, h, x, y, z)!\n"
+        "Do NOT add new objects unless the command explicitly asks to ADD a new part.\n\n"
         "If there is any conflict, the parameters must be strictly respected.\n\n"
 
         f"MODIFICATION COMMAND:\n{modification_command}\n\n"
