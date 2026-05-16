@@ -224,7 +224,7 @@ export default function AnalyticsPage() {
             <button
               type="button"
               onClick={() => setShowComments((current) => !current)}
-              className="flex w-full flex-col gap-3 text-left sm:flex-row sm:items-center sm:justify-between"
+              className="flex w-full cursor-pointer flex-col gap-3 text-left sm:flex-row sm:items-center sm:justify-between"
               aria-expanded={showComments}
             >
               <div>
