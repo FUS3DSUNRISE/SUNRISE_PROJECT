@@ -288,14 +288,6 @@ export function getCachedPromptParameters(promptId: number) {
     return readPromptParameterCache()[String(promptId)] ?? null;
 }
 
-function removeCachedPromptParameters(promptIds: number[]) {
-    const cache = readPromptParameterCache();
-    promptIds.forEach((promptId) => {
-        delete cache[String(promptId)];
-    });
-    writePromptParameterCache(cache);
-}
-
 function withCachedParameters<T extends { id: number; parameters?: FormattedParameters | null }>(prompt: T): T {
     return {
         ...prompt,
@@ -1018,58 +1010,6 @@ export async function getMyPrompts(): Promise<MyPromptsResponse> {
         user_id: data.user_id,
         username: data.username,
         prompts: (data.prompts ?? []).map(withCachedParameters),
-    };
-}
-
-export async function renamePrompt(
-    promptId: number,
-    prompt: string
-): Promise<PromptResponse> {
-    const res = await apiFetch(`/prompts/${promptId}`, {
-        method: "PATCH",
-        credentials: "include",
-        headers: {
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ prompt }),
-    });
-
-    const data = await parseJson<BackendErrorPayload & PromptResponse>(res);
-
-    if (!res.ok) {
-        throw createBackendError(res, data, "Failed to rename prompt");
-    }
-
-    return {
-        id: data.id,
-        prompt: data.prompt,
-        status: data.status,
-        result_path: data.result_path ?? null,
-        error_message: data.error_message ?? null,
-        parameters: data.parameters ?? null,
-        user_id: data.user_id,
-        username: data.username,
-        parent_prompt_id: data.parent_prompt_id ?? null,
-        created_at: data.created_at ?? null,
-    };
-}
-
-export async function deletePrompt(promptId: number): Promise<{ deleted_ids: number[] }> {
-    const res = await apiFetch(`/prompts/${promptId}`, {
-        method: "DELETE",
-        credentials: "include",
-    });
-
-    const data = await parseJson<BackendErrorPayload & { deleted_ids?: number[] }>(res);
-
-    if (!res.ok) {
-        throw createBackendError(res, data, "Failed to delete prompt");
-    }
-
-    removeCachedPromptParameters(data.deleted_ids ?? [promptId]);
-
-    return {
-        deleted_ids: data.deleted_ids ?? [promptId],
     };
 }
 
