@@ -16,18 +16,12 @@ def make_box(name, w, d, h, x, y, z):
     return obj
 
 def make_cylinder(name, r, h, x, y, z, segs=32):
-    verts, faces = [], []
-    for i in range(segs):
-        a = 2*math.pi*i/segs
-        verts += [(r*math.cos(a),r*math.sin(a),0),(r*math.cos(a),r*math.sin(a),h)]
-    for i in range(segs):
-        a,b = 2*i, 2*((i+1)%segs)
-        faces.append((a,b,b+1,a+1))
-    faces.append([2*i for i in range(segs-1,-1,-1)])
-    faces.append([2*i+1 for i in range(segs)])
+    bm = bmesh.new()
+    bmesh.ops.create_cone(bm, cap_ends=True, cap_tris=False, segments=segs, radius1=r, radius2=r, depth=h)
+    bmesh.ops.translate(bm, vec=(0.0, 0.0, h/2), verts=bm.verts)
     mesh = bpy.data.meshes.new(name)
-    mesh.from_pydata(verts, [], faces)
-    mesh.update()
+    bm.to_mesh(mesh)
+    bm.free()
     obj = bpy.data.objects.new(name, mesh)
     bpy.context.collection.objects.link(obj)
     obj.location = (x, y, z)
@@ -44,16 +38,63 @@ def make_sphere(name, r, x, y, z, segments=32, rings=16):
     obj.location = (x, y, z)
     return obj
 
-def set_material(name, r, g, b, roughness=0.5, metallic=0.0):
+def make_cone(name, r, h, x, y, z, segs=32):
+    bm = bmesh.new()
+    bmesh.ops.create_cone(bm, cap_ends=True, cap_tris=False, segments=segs, radius1=r, radius2=0, depth=h)
+    bmesh.ops.translate(bm, vec=(0.0, 0.0, h/2), verts=bm.verts)
+    mesh = bpy.data.meshes.new(name)
+    bm.to_mesh(mesh)
+    bm.free()
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(obj)
+    obj.location = (x, y, z)
+    return obj
+
+def make_torus(name, r_major, r_minor, x, y, z, major_segs=32, minor_segs=12):
+    try:
+        m_segs = max(3, int(major_segs))
+        n_segs = max(3, int(minor_segs))
+    except (ValueError, TypeError):
+        m_segs, n_segs = 32, 12
+        
+    bpy.ops.mesh.primitive_torus_add(
+        major_radius=r_major, 
+        minor_radius=r_minor, 
+        major_segments=m_segs, 
+        minor_segments=n_segs, 
+        location=(x, y, z)
+    )
+    obj = bpy.context.active_object
+    obj.name = name
+    if obj.data:
+        obj.data.name = name
+    return obj
+
+def set_material(name, r, g, b, roughness=0.5, metallic=0.0, target_obj_name=None):
+    if isinstance(roughness, str):
+        target_obj_name = roughness
+        roughness = 0.5
+        metallic = 0.0
+    elif isinstance(metallic, str):
+        target_obj_name = metallic
+        metallic = 0.0
+        
     mat = bpy.data.materials.new(name)
     mat.use_nodes = True
-    bsdf = mat.node_tree.nodes['Principled BSDF']
-    bsdf.inputs['Base Color'].default_value = (r,g,b,1)
-    bsdf.inputs['Roughness'].default_value = roughness
-    bsdf.inputs['Metallic'].default_value = metallic
-    for obj in bpy.context.scene.objects:
-        if obj.type == 'MESH' and not obj.data.materials:
+    if 'Principled BSDF' in mat.node_tree.nodes:
+        bsdf = mat.node_tree.nodes['Principled BSDF']
+        bsdf.inputs['Base Color'].default_value = (r,g,b,1)
+        bsdf.inputs['Roughness'].default_value = float(roughness)
+        bsdf.inputs['Metallic'].default_value = float(metallic)
+    if target_obj_name and target_obj_name in bpy.data.objects:
+        obj = bpy.data.objects[target_obj_name]
+        if obj.type == 'MESH':
+            obj.data.materials.clear()
             obj.data.materials.append(mat)
+    else:
+        for obj in bpy.context.scene.objects:
+            if obj.type == 'MESH' and not obj.data.materials:
+                obj.data.materials.append(mat)
 
 # --- SMART GENERATORS FOR KNOWN OBJECTS ---
 def build_chair(w, d, h):
@@ -83,7 +124,90 @@ def build_tree(w, d, h):
     make_cylinder("Trunk", trunk_r, trunk_h, 0, 0, 0)
     make_sphere("Foliage", foliage_r, 0, 0, trunk_h + foliage_r*0.2)
 
-bpy.ops.object.select_all(action='SELECT')
-bpy.ops.object.delete(use_global=False)
-for block in bpy.data.meshes: bpy.data.meshes.remove(block)
-for block in bpy.data.materials: bpy.data.materials.remove(block)
+def build_sofa(w, d, h):
+    seat_h = h * 0.4
+    arm_w = w * 0.15
+    back_t = d * 0.2
+    make_box("Seat", w - 2*arm_w, d - back_t, seat_h, 0, back_t/2, 0)
+    make_box("Backrest", w, back_t, h, 0, -d/2 + back_t/2, 0)
+    make_box("Armrest_L", arm_w, d, h * 0.6, -w/2 + arm_w/2, 0, 0)
+    make_box("Armrest_R", arm_w, d, h * 0.6, w/2 - arm_w/2, 0, 0)
+
+def build_bed(w, d, h):
+    frame_h = h * 0.3
+    mattress_h = h * 0.2
+    headboard_h = h
+    head_t = 0.1
+    make_box("Frame", w, d, frame_h, 0, 0, 0)
+    make_box("Mattress", w - 0.1, d - head_t - 0.05, mattress_h, 0, -head_t/2, frame_h)
+    make_box("Headboard", w, head_t, headboard_h, 0, d/2 - head_t/2, 0)
+
+def build_lamp(w, d, h):
+    base_r = min(w, d) * 0.4
+    base_h = h * 0.05
+    pole_r = min(w, d) * 0.05
+    pole_h = h * 0.7
+    shade_r = min(w, d) * 0.5
+    shade_h = h * 0.25
+    make_cylinder("Base", base_r, base_h, 0, 0, 0)
+    make_cylinder("Pole", pole_r, pole_h, 0, 0, base_h)
+    make_cone("Shade", shade_r, shade_h, 0, 0, base_h + pole_h)
+
+def build_car(w, d, h):
+    wheel_r = h * 0.2
+    wheel_w = d * 0.2
+    body_h = h * 0.4
+    roof_h = h * 0.3
+    make_box("Car_Body", w, d*0.8, body_h, 0, 0, wheel_r)
+    make_box("Car_Roof", w*0.6, d*0.7, roof_h, -w*0.1, 0, wheel_r + body_h)
+    for i, (x, y) in enumerate([(1, 1), (1, -1), (-1, 1), (-1, -1)]):
+        wh = make_cylinder(f"Car_Wheel_{i}", wheel_r, wheel_w, w*0.3*x, d*0.4*y + wheel_w/2, wheel_r)
+        wh.rotation_euler[0] = 1.5708
+
+def build_laptop(w, d, h):
+    base_t = h * 0.05
+    make_box("Laptop_Base", w, d, base_t, 0, 0, 0)
+    make_box("Laptop_Keyboard", w * 0.8, d * 0.6, h * 0.02, 0, -d * 0.1, base_t)
+    scr = make_box("Laptop_Screen", w, base_t, h*0.95, 0, d/2 - base_t/2, base_t)
+    scr.rotation_euler[0] = -0.2618
+
+def build_wardrobe(w, d, h):
+    make_box("Wardrobe_Body", w, d, h, 0, 0, 0)
+    door_l = make_box("Wardrobe_Door_L", w*0.48, d*0.05, h*0.95, -w*0.49, -d/2 - d*0.025, h*0.025)
+    for v in door_l.data.vertices: v.co.x += w*0.24
+    door_r = make_box("Wardrobe_Door_R", w*0.48, d*0.05, h*0.95, w*0.49, -d/2 - d*0.025, h*0.025)
+    for v in door_r.data.vertices: v.co.x -= w*0.24
+
+def build_cat(w, d, h):
+    body_w, body_d, body_h = w*0.6, d*0.4, h*0.4
+    make_box("Cat_Body", body_w, body_d, body_h, 0, 0, h*0.4)
+    make_box("Cat_Head", w*0.25, d*0.3, h*0.3, w*0.4, 0, h*0.7)
+    make_cone("Cat_Ear_L", w*0.1, h*0.2, w*0.4, d*0.1, h*1.0)
+    make_cone("Cat_Ear_R", w*0.1, h*0.2, w*0.4, -d*0.1, h*1.0)
+    tail = make_box("Cat_Tail", w*0.4, d*0.1, h*0.1, -w*0.4, 0, h*0.7)
+    tail.rotation_euler[1] = -0.5236
+    for i, (x, y) in enumerate([(0.2, 0.15), (0.2, -0.15), (-0.2, 0.15), (-0.2, -0.15)]):
+        make_box(f"Cat_Leg_{i}", w*0.1, d*0.1, h*0.4, w*x, d*y, 0)
+
+def build_pallet(w, d, h):
+    supp_w, supp_h = w*0.1, h*0.8
+    for i, y in enumerate([-d*0.4, 0, d*0.4]):
+        make_box(f"Pallet_Support_{i}", w, supp_w, supp_h, 0, y, 0)
+    board_w, board_h = w*0.15, h*0.2
+    for i, x in enumerate([-w*0.4, -w*0.2, 0, w*0.2, w*0.4]):
+        make_box(f"Pallet_Board_{i}", board_w, d, board_h, x, 0, supp_h)
+
+def build_screw(w, d, h):
+    shank_r = min(w, d) * 0.2
+    shank_h = h * 0.7
+    head_r = min(w, d) * 0.4
+    head_h = h * 0.15
+    tip_h = h * 0.15
+    make_cylinder("Screw_Shank", shank_r, shank_h, 0, 0, tip_h)
+    tip = make_cone("Screw_Tip", shank_r, tip_h, 0, 0, tip_h)
+    tip.rotation_euler[1] = 3.14159
+    make_cylinder("Screw_Head", head_r, head_h, 0, 0, tip_h + shank_h)
+    for i in range(8):
+        make_torus(f"Screw_Thread_{i}", shank_r, shank_r * 0.25, 0, 0, tip_h + (i / 7) * shank_h)
+    make_box("Screw_Drive_1", head_r*1.4, head_r*0.2, head_h*0.1, 0, 0, h)
+    make_box("Screw_Drive_2", head_r*0.2, head_r*1.4, head_h*0.1, 0, 0, h)
