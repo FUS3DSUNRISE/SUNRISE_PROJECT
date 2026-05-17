@@ -2,6 +2,21 @@
 
 Next.js frontend for prompt-based 3D model generation.
 
+## What This App Does
+
+The frontend is an interactive 3D asset workspace. Users can log in, create 3D models from prompts, tune generation parameters, preview results in a Three.js canvas, import GLB/GLTF/OBJ assets, modify generated or imported models, download generated files, review prompt history, submit feedback, and view feedback analytics.
+
+The frontend does not generate final model geometry locally. It communicates with the backend API for authentication, generation jobs, file access, asset import, prompt history, feedback, and analytics.
+
+## Stack
+
+- Next.js App Router
+- React and TypeScript
+- Tailwind CSS
+- Zustand
+- Three.js through `@react-three/fiber` and `@react-three/drei`
+- Recharts
+
 ## Local Startup
 
 Run frontend commands from `frontend/`.
@@ -58,8 +73,18 @@ The retry button checks the backend root endpoint and closes the modal only afte
 
 The frontend documentation is stored in the repository-level `docs/` directory:
 
+- [`docs/frontend_architecture_guide.md`](../docs/frontend_architecture_guide.md) - architecture overview, folder structure, runtime flow, state management, API layer, components, preview architecture, error handling, and extension guidelines.
 - [`docs/frontend_api_integration.md`](../docs/frontend_api_integration.md) - backend API communication, authentication cookies, generation polling, generated file access, uploads, history, feedback, analytics, and backend availability handling.
 - [`docs/frontend_site_functionality.md`](../docs/frontend_site_functionality.md) - main user-facing site behavior, including login, prompt input, generation, preview, download, modification, imported assets, history, feedback, analytics, and service fallback behavior.
+
+## Useful Commands
+
+```bash
+npm run dev
+npm run build
+npm run start
+npm run lint
+```
 
 ## Single-User Demo Deployment
 
