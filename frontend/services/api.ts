@@ -1013,6 +1013,36 @@ export async function getMyPrompts(): Promise<MyPromptsResponse> {
     };
 }
 
+export async function deletePromptVersion(promptId: number) {
+    const res = await apiFetch(`/prompts/${promptId}`, {
+        method: "DELETE",
+        credentials: "include",
+    });
+
+    const data = await parseJson<BackendErrorPayload>(res);
+
+    if (!res.ok) {
+        throw createBackendError(res, data, "Failed to delete prompt version");
+    }
+
+    return data;
+}
+
+export async function deletePromptHistory(promptId: number) {
+    const res = await apiFetch(`/prompts/${promptId}/history`, {
+        method: "DELETE",
+        credentials: "include",
+    });
+
+    const data = await parseJson<BackendErrorPayload & { root_prompt_id?: number; deleted_ids?: number[] }>(res);
+
+    if (!res.ok) {
+        throw createBackendError(res, data, "Failed to delete prompt history");
+    }
+
+    return data;
+}
+
 export async function submitFeedback(
     promptId: number,
     payload: FeedbackPayload

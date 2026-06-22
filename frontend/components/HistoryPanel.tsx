@@ -1,7 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { getMyPrompts, getPrompt, getUserFriendlyErrorMessage, type PromptResponse, type PromptVersionSummary } from "@/services/api";
+import { useEffect, useMemo, useState, type MouseEvent } from "react";
+import {
+    deletePromptHistory,
+    deletePromptVersion,
+    getMyPrompts,
+    getPrompt,
+    getUserFriendlyErrorMessage,
+    type PromptResponse,
+    type PromptVersionSummary,
+} from "@/services/api";
 import { useAuthStore } from "@/state/authStore";
 
 type HistorySortOrder = "newest" | "oldest";
@@ -11,6 +19,10 @@ type HistoryPanelProps = {
     className?: string;
     onSelectPrompt?: (prompt: PromptResponse) => void;
 };
+
+type PendingDelete =
+    | { type: "history"; promptId: number; title: string; description: string }
+    | { type: "version"; promptId: number; title: string; description: string };
 
 function getStatusClass(status: string) {
     if (status === "completed") return "text-green-400";
@@ -97,6 +109,9 @@ export default function HistoryPanel({ activePromptId, className = "", onSelectP
     const [loadingPrompts, setLoadingPrompts] = useState(false);
     const [loadingVersions, setLoadingVersions] = useState(false);
     const [loadingPromptId, setLoadingPromptId] = useState<number | null>(null);
+    const [deletingPromptId, setDeletingPromptId] = useState<number | null>(null);
+    const [deletingHistoryId, setDeletingHistoryId] = useState<number | null>(null);
+    const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
     const [error, setError] = useState<string | null>(null);
 
     const visiblePrompts = useMemo(() => {
@@ -252,8 +267,176 @@ export default function HistoryPanel({ activePromptId, className = "", onSelectP
         }
     };
 
+    const refreshPrompts = async () => {
+        const data = await getMyPrompts();
+        setPrompts(data.prompts);
+        return data.prompts;
+    };
+
+    const refreshExpandedVersions = async (promptId: number | null) => {
+        if (!promptId) return;
+
+        try {
+            const detail = await getPrompt(promptId);
+            setVersions(detail.version_history ?? []);
+        } catch {
+            setExpandedPromptId(null);
+            setVersions([]);
+        }
+    };
+
+    const handleDeleteHistory = async (
+        event: MouseEvent<HTMLButtonElement>,
+        promptId: number
+    ) => {
+        event.stopPropagation();
+
+        setPendingDelete({
+            type: "history",
+            promptId,
+            title: "Delete history card?",
+            description: "This will remove the selected card and all of its saved versions.",
+        });
+    };
+
+    const deleteHistory = async (promptId: number) => {
+
+        try {
+            setDeletingHistoryId(promptId);
+            setError(null);
+            const result = await deletePromptHistory(promptId);
+            const deletedIds = new Set(result.deleted_ids ?? [promptId]);
+
+            setPrompts((currentPrompts) =>
+                currentPrompts.filter((item) => !deletedIds.has(item.id))
+            );
+            setVersions((currentVersions) =>
+                currentVersions.filter((item) => !deletedIds.has(item.id))
+            );
+
+            if (expandedPromptId && deletedIds.has(expandedPromptId)) {
+                setExpandedPromptId(null);
+                setVersions([]);
+            }
+        } catch (deleteError) {
+            const message = getUserFriendlyErrorMessage(deleteError, "Failed to delete this history card");
+            setError(message);
+        } finally {
+            setDeletingHistoryId(null);
+        }
+    };
+
+    const handleDeleteVersion = async (
+        event: MouseEvent<HTMLButtonElement>,
+        promptId: number
+    ) => {
+        event.stopPropagation();
+
+        setPendingDelete({
+            type: "version",
+            promptId,
+            title: "Delete this version?",
+            description: "This version will be removed from history. Other versions stay available.",
+        });
+    };
+
+    const deleteVersion = async (promptId: number) => {
+
+        try {
+            setDeletingPromptId(promptId);
+            setError(null);
+            await deletePromptVersion(promptId);
+            await refreshPrompts();
+
+            if (expandedPromptId === promptId) {
+                setExpandedPromptId(null);
+                setVersions([]);
+            } else {
+                await refreshExpandedVersions(expandedPromptId);
+            }
+        } catch (deleteError) {
+            const message = getUserFriendlyErrorMessage(deleteError, "Failed to delete this version");
+            setError(message);
+        } finally {
+            setDeletingPromptId(null);
+        }
+    };
+
+    const confirmPendingDelete = async () => {
+        if (!pendingDelete) return;
+
+        const deleteRequest = pendingDelete;
+        setPendingDelete(null);
+
+        if (deleteRequest.type === "history") {
+            await deleteHistory(deleteRequest.promptId);
+            return;
+        }
+
+        await deleteVersion(deleteRequest.promptId);
+    };
+
+    const deleteConfirmation = pendingDelete ? (
+        <div className="absolute inset-0 z-20 flex items-start justify-center bg-black/35 px-4 pt-5 backdrop-blur-sm">
+            <div
+                className="w-full max-w-md rounded-2xl border border-white/10 bg-[#030407] px-4 py-3.5 shadow-2xl shadow-black/60"
+                role="alertdialog"
+                aria-modal="true"
+                aria-labelledby="history-delete-title"
+                aria-describedby="history-delete-description"
+            >
+                <div className="mb-3 flex min-w-0 items-start gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-red-400/25 bg-red-500/10 text-red-200">
+                        <svg
+                            aria-hidden="true"
+                            viewBox="0 0 24 24"
+                            className="h-4 w-4"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="2"
+                        >
+                            <path d="M3 6h18" />
+                            <path d="M8 6V4h8v2" />
+                            <path d="M19 6l-1 14H6L5 6" />
+                            <path d="M10 11v5" />
+                            <path d="M14 11v5" />
+                        </svg>
+                    </div>
+                    <div className="min-w-0">
+                        <h3 id="history-delete-title" className="text-sm font-semibold text-white">
+                            {pendingDelete.title}
+                        </h3>
+                        <p id="history-delete-description" className="mt-1 text-xs leading-5 text-white/55">
+                            {pendingDelete.description}
+                        </p>
+                    </div>
+                </div>
+
+                <div className="flex justify-end gap-2">
+                    <button
+                        type="button"
+                        onClick={() => setPendingDelete(null)}
+                        className="h-9 rounded-xl border border-white/10 bg-white/[0.04] px-4 text-sm font-medium text-white/75 transition hover:bg-white/[0.08]"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        type="button"
+                        onClick={confirmPendingDelete}
+                        className="h-9 rounded-xl border border-red-300/35 bg-red-500/15 px-4 text-sm font-semibold text-red-100 transition hover:border-red-300/60 hover:bg-red-500/25"
+                    >
+                        Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    ) : null;
+
     return (
-        <div className={`mt-6 flex min-h-0 flex-col overflow-hidden rounded-[26px] border border-white/5 bg-[#0b1020]/70 shadow-inner ${className}`}>
+        <>
+        <div className={`relative mt-6 flex min-h-0 flex-col overflow-hidden rounded-[26px] border border-white/5 bg-[#0b1020]/70 shadow-inner ${className}`}>
             <div className="px-5 pb-4 pt-5">
                 <div className="mb-4 flex items-center justify-between gap-4">
                     <div>
@@ -323,7 +506,7 @@ export default function HistoryPanel({ activePromptId, className = "", onSelectP
                         return (
                             <div
                                 key={item.id}
-                                className={`relative rounded-2xl border bg-white/[0.03] transition ${isActive
+                                className={`group/card relative rounded-2xl border bg-white/[0.03] transition ${isActive
                                         ? "border-[#ff8a2c]/80"
                                         : "border-white/10 hover:bg-white/[0.05]"
                                     }`}
@@ -331,7 +514,7 @@ export default function HistoryPanel({ activePromptId, className = "", onSelectP
                                 <button
                                     type="button"
                                     onClick={() => loadVersions(item.id)}
-                                    className="block w-full cursor-pointer px-4 py-3 text-left"
+                                    className="block w-full cursor-pointer py-3 pl-4 pr-12 text-left"
                                 >
                                     <div className="flex items-start justify-between gap-4">
                                         <div className="min-w-0">
@@ -401,6 +584,31 @@ export default function HistoryPanel({ activePromptId, className = "", onSelectP
                                         </span>
                                     </div>
                                 </button>
+                                <button
+                                    type="button"
+                                    onClick={(event) => handleDeleteHistory(event, item.id)}
+                                    disabled={deletingHistoryId === item.id}
+                                    className="absolute right-3 top-[4px] inline-flex h-8 w-8 items-center justify-center text-white/80 opacity-0 transition hover:text-white focus-visible:opacity-100 disabled:cursor-wait disabled:opacity-60 group-hover/card:opacity-100"
+                                    aria-label={`Delete history card ${item.id}`}
+                                    title="Delete history card"
+                                >
+                                    <svg
+                                        aria-hidden="true"
+                                        viewBox="0 0 24 24"
+                                        className="h-3.5 w-3.5"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth="2"
+                                    >
+                                        <path d="M3 6h18" />
+                                        <path d="M8 6V4h8v2" />
+                                        <path d="M19 6l-1 14H6L5 6" />
+                                        <path d="M10 11v5" />
+                                        <path d="M14 11v5" />
+                                    </svg>
+                                </button>
 
                                 {isExpanded && (
                                     <div className="border-t border-white/10 px-4 pb-4 pt-3">
@@ -413,54 +621,83 @@ export default function HistoryPanel({ activePromptId, className = "", onSelectP
                                                     const versionGeneratedAt = formatGeneratedAt(version.created_at);
                                                     const versionParameterSummary = formatParametersSummary(version);
                                                     return (
-                                                        <button
+                                                        <div
                                                             key={version.id}
-                                                            type="button"
-                                                            onClick={() => selectVersion(version.id)}
-                                                            disabled={loadingPromptId === version.id}
-                                                            className={`flex w-full cursor-pointer items-center justify-between gap-3 rounded-xl border px-3 py-3 text-left transition disabled:cursor-wait disabled:opacity-70 ${versionIsActive
+                                                            className={`group/version flex w-full items-center gap-3 rounded-xl border p-2 transition ${versionIsActive
                                                                     ? "border-[#ff8a2c]/80 bg-[#ff8a2c]/10"
                                                                     : "border-white/10 bg-[#0f111a] hover:bg-white/[0.05]"
                                                                 }`}
                                                         >
-                                                            <div className="min-w-0">
-                                                                <p className="truncate text-sm font-medium text-white">
-                                                                    Version {sortOrder === "newest" ? versionList.length - index : index + 1}
-                                                                    {version.parent_prompt_id ? " refinement" : " original"}
-                                                                </p>
-                                                                <p className="mt-1 text-xs text-white/40">
-                                                                    Prompt ID: {version.id}
-                                                                </p>
-                                                                {version.prompt && (
-                                                                    <p className="mt-1 truncate text-xs text-white/55">
-                                                                        Prompt: {version.prompt}
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => selectVersion(version.id)}
+                                                                disabled={loadingPromptId === version.id || deletingPromptId === version.id}
+                                                                className="flex min-w-0 flex-1 cursor-pointer items-center justify-between gap-3 rounded-lg px-1 py-1 text-left transition disabled:cursor-wait disabled:opacity-70"
+                                                            >
+                                                                <div className="min-w-0">
+                                                                    <p className="truncate text-sm font-medium text-white">
+                                                                        Version {sortOrder === "newest" ? versionList.length - index : index + 1}
+                                                                        {version.parent_prompt_id ? " refinement" : " original"}
                                                                     </p>
-                                                                )}
-                                                                {version.modification_command && (
-                                                                    <p className="mt-1 truncate text-xs text-white/55">
-                                                                        Modification: {version.modification_command}
+                                                                    <p className="mt-1 text-xs text-white/40">
+                                                                        Prompt ID: {version.id}
                                                                     </p>
-                                                                )}
-                                                                {versionParameterSummary && (
-                                                                    <p className="mt-1 truncate text-[11px] text-white/35">
-                                                                        Parameters: {versionParameterSummary}
-                                                                    </p>
-                                                                )}
-                                                                {versionGeneratedAt ? (
-                                                                    <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-white/35">
-                                                                        <span>{versionGeneratedAt.date}</span>
-                                                                        <span>{versionGeneratedAt.time}</span>
-                                                                    </p>
-                                                                ) : (
-                                                                    <p className="mt-1 text-[11px] text-white/25">
-                                                                        Date unavailable
-                                                                    </p>
-                                                                )}
-                                                            </div>
-                                                            <span className={`shrink-0 text-xs font-medium capitalize ${getStatusClass(version.status)}`}>
-                                                                {loadingPromptId === version.id ? "Loading" : version.status.replaceAll("_", " ")}
-                                                            </span>
-                                                        </button>
+                                                                    {version.prompt && (
+                                                                        <p className="mt-1 truncate text-xs text-white/55">
+                                                                            Prompt: {version.prompt}
+                                                                        </p>
+                                                                    )}
+                                                                    {version.modification_command && (
+                                                                        <p className="mt-1 truncate text-xs text-white/55">
+                                                                            Modification: {version.modification_command}
+                                                                        </p>
+                                                                    )}
+                                                                    {versionParameterSummary && (
+                                                                        <p className="mt-1 truncate text-[11px] text-white/35">
+                                                                            Parameters: {versionParameterSummary}
+                                                                        </p>
+                                                                    )}
+                                                                    {versionGeneratedAt ? (
+                                                                        <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-white/35">
+                                                                            <span>{versionGeneratedAt.date}</span>
+                                                                            <span>{versionGeneratedAt.time}</span>
+                                                                        </p>
+                                                                    ) : (
+                                                                        <p className="mt-1 text-[11px] text-white/25">
+                                                                            Date unavailable
+                                                                        </p>
+                                                                    )}
+                                                                </div>
+                                                                <span className={`shrink-0 text-xs font-medium capitalize ${getStatusClass(version.status)}`}>
+                                                                    {loadingPromptId === version.id ? "Loading" : version.status.replaceAll("_", " ")}
+                                                                </span>
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={(event) => handleDeleteVersion(event, version.id)}
+                                                                disabled={deletingPromptId === version.id}
+                                                                className="inline-flex h-8 w-8 shrink-0 items-center justify-center text-white/80 opacity-0 transition hover:text-white focus-visible:opacity-100 disabled:cursor-wait disabled:opacity-60 group-hover/version:opacity-100"
+                                                                aria-label={`Delete version ${version.id}`}
+                                                                title="Delete version"
+                                                            >
+                                                                <svg
+                                                                    aria-hidden="true"
+                                                                    viewBox="0 0 24 24"
+                                                                    className="h-3.5 w-3.5"
+                                                                    fill="none"
+                                                                    stroke="currentColor"
+                                                                    strokeLinecap="round"
+                                                                    strokeLinejoin="round"
+                                                                    strokeWidth="2"
+                                                                >
+                                                                    <path d="M3 6h18" />
+                                                                    <path d="M8 6V4h8v2" />
+                                                                    <path d="M19 6l-1 14H6L5 6" />
+                                                                    <path d="M10 11v5" />
+                                                                    <path d="M14 11v5" />
+                                                                </svg>
+                                                            </button>
+                                                        </div>
                                                     );
                                                 })}
                                             </div>
@@ -491,6 +728,8 @@ export default function HistoryPanel({ activePromptId, className = "", onSelectP
                     </div>
                 </div>
             )}
+            {deleteConfirmation}
         </div>
+        </>
     );
 }

@@ -147,6 +147,95 @@ def collect_version_history(prompt):
 
     return versions, root
 
+
+def collect_prompt_tree(prompt):
+    prompts = []
+
+    def dfs(node):
+        prompts.append(node)
+        children = sorted(node.refined_versions, key=lambda p: p.created_at or 0)
+        for child in children:
+            dfs(child)
+
+    dfs(prompt)
+    return prompts
+
+
+def delete_prompt_records(prompts):
+    prompt_ids = [prompt.id for prompt in prompts]
+    if prompt_ids:
+        GenerationFeedback.query.filter(
+            GenerationFeedback.prompt_id.in_(prompt_ids)
+        ).delete(synchronize_session=False)
+
+    for prompt in reversed(prompts):
+        db.session.delete(prompt)
+
+
+@prompts_bp.route("/<int:id>", methods=["DELETE"])
+def delete_prompt_version(id):
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "Not authenticated"}), 401
+
+    prompt = PromptRequest.query.get(id)
+    if not prompt:
+        return jsonify({"error": "Prompt not found"}), 404
+
+    if prompt.user_id != user_id:
+        return jsonify({"error": "Unauthorized access to this prompt"}), 403
+
+    replacement_parent_id = prompt.parent_prompt_id
+    child_ids = [child.id for child in prompt.refined_versions]
+
+    GenerationFeedback.query.filter_by(prompt_id=prompt.id).delete(
+        synchronize_session=False
+    )
+    db.session.delete(prompt)
+    db.session.flush()
+
+    if child_ids:
+        PromptRequest.query.filter(
+            PromptRequest.id.in_(child_ids)
+        ).update(
+            {PromptRequest.parent_prompt_id: replacement_parent_id},
+            synchronize_session=False
+        )
+
+    db.session.commit()
+
+    return jsonify({
+        "message": "Prompt version deleted",
+        "id": id
+    }), 200
+
+
+@prompts_bp.route("/<int:id>/history", methods=["DELETE"])
+def delete_prompt_history(id):
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "Not authenticated"}), 401
+
+    prompt = PromptRequest.query.get(id)
+    if not prompt:
+        return jsonify({"error": "Prompt not found"}), 404
+
+    if prompt.user_id != user_id:
+        return jsonify({"error": "Unauthorized access to this prompt"}), 403
+
+    root_prompt = get_root_prompt(prompt)
+    prompt_tree = collect_prompt_tree(root_prompt)
+    deleted_ids = [item.id for item in prompt_tree]
+
+    delete_prompt_records(prompt_tree)
+    db.session.commit()
+
+    return jsonify({
+        "message": "Prompt history deleted",
+        "root_prompt_id": root_prompt.id,
+        "deleted_ids": deleted_ids
+    }), 200
+
 @prompts_bp.route("/<int:id>", methods=["GET"])
 def get_prompt(id):
     prompt = PromptRequest.query.get(id)
