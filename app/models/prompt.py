@@ -21,6 +21,7 @@ class PromptRequest(db.Model):
     parameters = db.Column(db.JSON, nullable=True)
     generated_code = db.Column(db.Text, nullable=True)
     modification_command = db.Column(db.Text, nullable=True)
+    thumbnail_path = db.Column(db.String(255), nullable=True)
 
     status = db.Column(db.Enum(PromptStatus), nullable=False)
 

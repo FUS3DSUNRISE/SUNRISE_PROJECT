@@ -1045,8 +1045,8 @@ export default function Home() {
 
     const handleHistoryPromptSelected = (historyPrompt: PromptResponse) => {
         clearLocalAsset();
-        setPrompt(historyPrompt.prompt);
-        setModifyCommand("");
+        setPrompt(historyPrompt.prompt ?? "");
+        setModifyCommand(historyPrompt.modification_command ?? "");
         setErrorMessage(historyPrompt.error_message);
         setFeedbackSubmittedPromptId(null);
 

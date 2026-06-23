@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, send_from_directory, current_app, session, Response
+from flask import Blueprint, request, jsonify, send_from_directory, current_app, session, Response, send_file
 from app.extensions import db
 from app.models.prompt import PromptRequest, PromptStatus
 from app.models.user import User
@@ -74,7 +74,7 @@ def create_prompt():
 
     # CLARIFY 
     if classification["action"] == "clarify":
-        final_reason = classification.get("reason") or reason
+        final_reason = classification.get("reason") or "Please provide more detail."
         prompt = PromptRequest(
             parameters=validated_params,
             prompt_text=prompt_text,
@@ -112,6 +112,7 @@ def create_prompt():
         "prompt": prompt.prompt_text,
         "status": prompt.status.value,
         "user_id": prompt.user_id,
+        "thumbnail_path": prompt.thumbnail_path,
         "created_at": iso_utc(prompt.created_at)
     }), 201
 
@@ -133,6 +134,7 @@ def collect_version_history(prompt):
             "modification_command": node.modification_command,
             "status": node.status.value,
             "result_path": node.result_path,
+            "thumbnail_path": node.thumbnail_path,
             "error_message": node.error_message,
             "parameters": node.parameters,
             "created_at": iso_utc(node.created_at)
@@ -257,7 +259,9 @@ def get_prompt(id):
         "prompt": prompt.prompt_text,
         "status": prompt.status.value,
         "result_path": prompt.result_path,
+        "thumbnail_path": prompt.thumbnail_path,
         "error_message": prompt.error_message,
+        "parameters": prompt.parameters,
         "user_id": prompt.user_id,
         "username": prompt.user.username,
         "parent_prompt_id": prompt.parent_prompt_id,
@@ -289,7 +293,9 @@ def get_my_prompts():
             "prompt": prompt.prompt_text,
             "status": prompt.status.value,
             "result_path": prompt.result_path,
+            "thumbnail_path": prompt.thumbnail_path,
             "error_message": prompt.error_message,
+            "parameters": prompt.parameters,
             "modification_command": prompt.modification_command,
             "created_at": iso_utc(prompt.created_at)
         })
@@ -356,6 +362,31 @@ def get_prompt_file(id):
 
     return send_from_directory(models_dir, filename)
 
+
+@prompts_bp.route("/<int:id>/thumbnail", methods=["GET"])
+def get_prompt_thumbnail(id):
+    prompt = PromptRequest.query.get(id)
+
+    if not prompt:
+        return jsonify({"error": "Prompt not found"}), 404
+
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "Not authenticated"}), 401
+
+    if prompt.user_id != user_id:
+        return jsonify({"error": "Unauthorized access to this asset"}), 403
+
+    if not prompt.thumbnail_path:
+        return jsonify({"error": "No thumbnail for this prompt"}), 404
+
+    file_path = os.path.abspath(os.path.join(current_app.root_path, "..", prompt.thumbnail_path.lstrip("/")))
+
+    if not os.path.exists(file_path):
+        return jsonify({"error": f"Thumbnail not found on server: {file_path}"}), 404
+
+    return send_file(file_path)
+
 @prompts_bp.route("/<int:id>/modify", methods=["POST"])
 def modify_prompt(id):
     user_id = session.get("user_id")
@@ -407,6 +438,7 @@ def modify_prompt(id):
         "status": new_prompt.status.value,
         "message": "Modification started",
         "parent_id": original_prompt.id,
+        "thumbnail_path": new_prompt.thumbnail_path,
         "created_at": iso_utc(new_prompt.created_at)
     }), 201
 

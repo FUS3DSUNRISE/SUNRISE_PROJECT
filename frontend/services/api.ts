@@ -500,6 +500,7 @@ export type PromptResponse = {
     prompt: string;
     status: string;
     result_path: string | null;
+    thumbnail_path?: string | null;
     error_message: string | null;
     parameters?: FormattedParameters | null;
     user_id?: number;
@@ -518,6 +519,7 @@ export type PromptVersionSummary = {
     prompt?: string;
     status: string;
     result_path: string | null;
+    thumbnail_path?: string | null;
     error_message?: string | null;
     parameters?: FormattedParameters | null;
     modification_command?: string | null;
@@ -608,6 +610,7 @@ export async function createPrompt(payload: GeneratePayload): Promise<PromptResp
         prompt: data.prompt,
         status: data.status,
         result_path: data.result_path ?? null,
+        thumbnail_path: data.thumbnail_path ?? null,
         error_message: data.error_message ?? null,
         parameters: data.parameters ?? payload.parameters,
         user_id: data.user_id,
@@ -633,6 +636,7 @@ export async function getPrompt(id: number): Promise<PromptResponse> {
         prompt: data.prompt,
         status: data.status,
         result_path: data.result_path ?? null,
+        thumbnail_path: data.thumbnail_path ?? null,
         error_message: data.error_message ?? null,
         parameters: data.parameters ?? null,
         user_id: data.user_id,
@@ -883,6 +887,31 @@ export function getDownloadUrl(id: number) {
 
 export function getPreviewUrl(id: number) {
     return `${API_BASE_URL}/prompts/${id}/file`;
+}
+
+export function getThumbnailUrl(id: number) {
+    return `${API_BASE_URL}/prompts/${id}/thumbnail`;
+}
+
+export async function getThumbnailBlobUrl(id: number): Promise<string> {
+    const res = await apiFetch(`/prompts/${id}/thumbnail`, {
+        credentials: "include",
+    });
+
+    if (!res.ok) {
+        const data = await parseJson<BackendErrorPayload>(res);
+        throw createBackendError(res, data, "Failed to fetch thumbnail");
+    }
+
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
+}
+
+export function getStaticAssetUrl(path: string | null | undefined) {
+    if (!path) return null;
+    if (/^https?:\/\//i.test(path)) return path;
+
+    return `${API_BASE_URL}${path}`;
 }
 
 export async function getPreviewBlobUrl(id: number): Promise<string> {

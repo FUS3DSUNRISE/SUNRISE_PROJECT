@@ -12,6 +12,7 @@ import traceback
 import time
 import textwrap
 import re
+from pathlib import Path
 from dotenv import load_dotenv
 
 from worker import celery
@@ -312,6 +313,139 @@ def _prepare_generated_code(code: str, output_path: str) -> str:
     return f"{base_header}\n\n{code}"
 
 
+def _write_temp_helper_script(prompt_id: int, prefix: str, code: str) -> str:
+    if not isinstance(prompt_id, int) or prompt_id < 0:
+        raise ValueError(f"Invalid prompt_id: {prompt_id!r}")
+
+    tmp_dir = Path(os.getenv("BLENDER_SCRIPT_DIR", "/tmp/blender_scripts"))
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+
+    filename = tmp_dir / f"{prefix}_{prompt_id}.py"
+    filename.write_text(code, encoding="utf-8")
+    filename.chmod(0o600)
+    return str(filename)
+
+
+def _get_root_prompt(prompt: PromptRequest) -> PromptRequest:
+    current = prompt
+    while current.parent_prompt is not None:
+        current = current.parent_prompt
+    return current
+
+
+def _collect_prompt_versions(prompt: PromptRequest) -> list[PromptRequest]:
+    versions: list[PromptRequest] = []
+
+    def dfs(node: PromptRequest) -> None:
+        versions.append(node)
+        children = sorted(
+            node.refined_versions,
+            key=lambda item: item.created_at.timestamp() if item.created_at else 0
+        )
+        for child in children:
+            dfs(child)
+
+    dfs(_get_root_prompt(prompt))
+    return versions
+
+
+def _get_thumbnail_target(prompt: PromptRequest) -> tuple[PromptRequest, int]:
+    root_prompt = _get_root_prompt(prompt)
+    versions = _collect_prompt_versions(prompt)
+
+    for index, item in enumerate(versions, start=1):
+        if item.id == prompt.id:
+            return root_prompt, index
+
+    return root_prompt, len(versions) + 1
+
+
+def _build_thumbnail_render_script(model_path: str, thumbnail_path: str) -> str:
+    return textwrap.dedent(f"""
+        import os
+        import bpy
+        from mathutils import Vector
+
+        MODEL_PATH = {model_path!r}
+        THUMBNAIL_PATH = {thumbnail_path!r}
+
+        bpy.ops.wm.read_factory_settings(use_empty=True)
+
+        extension = os.path.splitext(MODEL_PATH)[1].lower()
+        if extension in (".glb", ".gltf"):
+            bpy.ops.import_scene.gltf(filepath=MODEL_PATH)
+        elif extension == ".obj":
+            if hasattr(bpy.ops.wm, "obj_import"):
+                bpy.ops.wm.obj_import(filepath=MODEL_PATH)
+            else:
+                bpy.ops.import_scene.obj(filepath=MODEL_PATH)
+        else:
+            raise RuntimeError("Unsupported thumbnail source: " + extension)
+
+        scene = bpy.context.scene
+        mesh_objects = [obj for obj in scene.objects if obj.type == "MESH"]
+        if not mesh_objects:
+            raise RuntimeError("No mesh objects available for thumbnail generation")
+
+        bounds = []
+        for obj in mesh_objects:
+            for corner in obj.bound_box:
+                bounds.append(obj.matrix_world @ Vector(corner))
+
+        min_corner = Vector((
+            min(point.x for point in bounds),
+            min(point.y for point in bounds),
+            min(point.z for point in bounds),
+        ))
+        max_corner = Vector((
+            max(point.x for point in bounds),
+            max(point.y for point in bounds),
+            max(point.z for point in bounds),
+        ))
+
+        center = (min_corner + max_corner) / 2
+
+        camera_data = bpy.data.cameras.new("ThumbnailCamera")
+        camera = bpy.data.objects.new("ThumbnailCamera", camera_data)
+        scene.collection.objects.link(camera)
+        camera.location = center + Vector((6.8, -6.8, 4.6))
+        camera.data.lens = 45
+        camera.rotation_euler = (center - camera.location).to_track_quat("-Z", "Y").to_euler()
+        scene.camera = camera
+
+        key_light_data = bpy.data.lights.new(name="ThumbnailKeyLight", type="AREA")
+        key_light_data.energy = 3000
+        key_light = bpy.data.objects.new(name="ThumbnailKeyLight", object_data=key_light_data)
+        scene.collection.objects.link(key_light)
+        key_light.location = center + Vector((5.0, 4.2, 7.0))
+
+        fill_light_data = bpy.data.lights.new(name="ThumbnailFillLight", type="AREA")
+        fill_light_data.energy = 1200
+        fill_light = bpy.data.objects.new(name="ThumbnailFillLight", object_data=fill_light_data)
+        scene.collection.objects.link(fill_light)
+        fill_light.location = center + Vector((-4.6, -3.0, 4.0))
+
+        if scene.world is None:
+            scene.world = bpy.data.worlds.new("ThumbnailWorld")
+        scene.world.use_nodes = True
+        background = scene.world.node_tree.nodes.get("Background")
+        if background:
+            background.inputs[0].default_value = (0.08, 0.08, 0.08, 1.0)
+            background.inputs[1].default_value = 0.8
+
+        scene.render.engine = "CYCLES"
+        scene.cycles.samples = 8
+        scene.render.resolution_x = 512
+        scene.render.resolution_y = 512
+        scene.render.resolution_percentage = 100
+        scene.render.film_transparent = False
+        scene.render.image_settings.file_format = "PNG"
+        scene.render.filepath = THUMBNAIL_PATH
+
+        bpy.ops.render.render(write_still=True)
+    """).strip()
+
+
 def _build_generation_prompt(prompt: PromptRequest, parameters: dict) -> str:
     final_user_prompt = PromptService.create_final_prompt(
         user_query=prompt.prompt_text,
@@ -585,6 +719,56 @@ def process_prompt_task(
                 output_path=output_path,
                 timeout=120,
             )
+
+            thumbnail_script_filename = None
+            root_prompt, version_index = _get_thumbnail_target(prompt)
+            thumbnail_rel_path = f"/static/models/thumbnails/prompt_{root_prompt.id}/version_{version_index}.png"
+            thumbnail_disk_path = os.path.abspath(
+                os.path.join(
+                    app.root_path,
+                    "..",
+                    "static",
+                    "models",
+                    "thumbnails",
+                    f"prompt_{root_prompt.id}",
+                    f"version_{version_index}.png",
+                )
+            )
+            os.makedirs(os.path.dirname(thumbnail_disk_path), exist_ok=True)
+
+            try:
+                thumbnail_script = _build_thumbnail_render_script(
+                    model_path=os.path.abspath(os.path.join(app.root_path, "..", output_path)),
+                    thumbnail_path=thumbnail_disk_path,
+                )
+                thumbnail_script_filename = _write_temp_helper_script(
+                    prompt_id=prompt_id,
+                    prefix="thumbnail_script",
+                    code=thumbnail_script,
+                )
+
+                run_blender_script(
+                    prompt_id=prompt_id,
+                    script_filename=thumbnail_script_filename,
+                    output_path=thumbnail_disk_path,
+                    timeout=120,
+                )
+
+                prompt.thumbnail_path = thumbnail_rel_path
+                logger.info(
+                    "Thumbnail rendered | prompt_id=%s thumbnail_path=%s",
+                    prompt_id,
+                    prompt.thumbnail_path,
+                )
+            except Exception as exc:
+                prompt.thumbnail_path = None
+                logger.warning(
+                    "Thumbnail render failed | prompt_id=%s: %s",
+                    prompt_id,
+                    exc,
+                )
+            finally:
+                cleanup_file(thumbnail_script_filename)
 
             prompt.status = PromptStatus.COMPLETED
             prompt.result_path = f"/static/models/{output_filename}"

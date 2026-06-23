@@ -6,6 +6,7 @@ import {
     deletePromptVersion,
     getMyPrompts,
     getPrompt,
+    getThumbnailBlobUrl,
     getUserFriendlyErrorMessage,
     type PromptResponse,
     type PromptVersionSummary,
@@ -23,6 +24,82 @@ type HistoryPanelProps = {
 type PendingDelete =
     | { type: "history"; promptId: number; title: string; description: string }
     | { type: "version"; promptId: number; title: string; description: string };
+
+function VersionThumbnail({ promptId, thumbnailPath }: { promptId: number; thumbnailPath?: string | null }) {
+    const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
+    const [loadError, setLoadError] = useState(false);
+
+    useEffect(() => {
+        let isMounted = true;
+        let objectUrl: string | null = null;
+
+        async function loadThumbnail() {
+            if (!thumbnailPath) {
+                if (isMounted) setThumbnailUrl(null);
+                if (isMounted) setLoadError(false);
+                return;
+            }
+
+            try {
+                objectUrl = await getThumbnailBlobUrl(promptId);
+                if (isMounted) {
+                    setThumbnailUrl(objectUrl);
+                    setLoadError(false);
+                } else if (objectUrl) {
+                    URL.revokeObjectURL(objectUrl);
+                }
+            } catch {
+                if (isMounted) {
+                    setThumbnailUrl(null);
+                    setLoadError(true);
+                }
+            }
+        }
+
+        loadThumbnail();
+
+        return () => {
+            isMounted = false;
+            if (objectUrl) {
+                URL.revokeObjectURL(objectUrl);
+            }
+        };
+    }, [promptId, thumbnailPath]);
+
+    if (!thumbnailPath) {
+        return (
+            <div className="flex h-full w-full items-center justify-center text-[10px] font-medium uppercase tracking-[0.12em] text-white/25">
+                No preview
+            </div>
+        );
+    }
+
+    if (loadError) {
+        return (
+            <div className="flex h-full w-full items-center justify-center text-[10px] font-medium uppercase tracking-[0.12em] text-white/25">
+                No preview
+            </div>
+        );
+    }
+
+    if (!thumbnailUrl) {
+        return (
+            <div className="flex h-full w-full items-center justify-center text-[10px] font-medium uppercase tracking-[0.12em] text-white/25">
+                Loading
+            </div>
+        );
+    }
+
+    return (
+        <img
+            src={thumbnailUrl}
+            alt={`Thumbnail for version ${promptId}`}
+            className="h-full w-full object-cover"
+            loading="lazy"
+            decoding="async"
+        />
+    );
+}
 
 function getStatusClass(status: string) {
     if (status === "completed") return "text-green-400";
@@ -230,6 +307,7 @@ export default function HistoryPanel({ activePromptId, className = "", onSelectP
                     prompt: detail.prompt,
                     status: detail.status,
                     result_path: detail.result_path,
+                    thumbnail_path: detail.thumbnail_path,
                     error_message: detail.error_message,
                     parameters: detail.parameters,
                     modification_command: detail.modification_command,
@@ -623,7 +701,7 @@ export default function HistoryPanel({ activePromptId, className = "", onSelectP
                                                     return (
                                                         <div
                                                             key={version.id}
-                                                            className={`group/version flex w-full items-center gap-3 rounded-xl border p-2 transition ${versionIsActive
+                                                            className={`group/version flex w-full items-start gap-3 rounded-xl border p-2 transition ${versionIsActive
                                                                     ? "border-[#ff8a2c]/80 bg-[#ff8a2c]/10"
                                                                     : "border-white/10 bg-[#0f111a] hover:bg-white/[0.05]"
                                                                 }`}
@@ -632,9 +710,9 @@ export default function HistoryPanel({ activePromptId, className = "", onSelectP
                                                                 type="button"
                                                                 onClick={() => selectVersion(version.id)}
                                                                 disabled={loadingPromptId === version.id || deletingPromptId === version.id}
-                                                                className="flex min-w-0 flex-1 cursor-pointer items-center justify-between gap-3 rounded-lg px-1 py-1 text-left transition disabled:cursor-wait disabled:opacity-70"
+                                                                className="flex min-w-0 flex-1 cursor-pointer items-start gap-3 rounded-lg px-1 py-1 text-left transition disabled:cursor-wait disabled:opacity-70"
                                                             >
-                                                                <div className="min-w-0">
+                                                                <div className="min-w-0 flex-1">
                                                                     <p className="truncate text-sm font-medium text-white">
                                                                         Version {sortOrder === "newest" ? versionList.length - index : index + 1}
                                                                         {version.parent_prompt_id ? " refinement" : " original"}
@@ -668,10 +746,18 @@ export default function HistoryPanel({ activePromptId, className = "", onSelectP
                                                                         </p>
                                                                     )}
                                                                 </div>
+                                                            </button>
+                                                            <div className="flex flex-shrink-0 flex-col items-end gap-2 pt-1">
                                                                 <span className={`shrink-0 text-xs font-medium capitalize ${getStatusClass(version.status)}`}>
                                                                     {loadingPromptId === version.id ? "Loading" : version.status.replaceAll("_", " ")}
                                                                 </span>
-                                                            </button>
+                                                                <div className="relative h-16 w-16 overflow-hidden rounded-xl border border-white/10 bg-white/[0.04]">
+                                                                    <VersionThumbnail
+                                                                        promptId={version.id}
+                                                                        thumbnailPath={version.thumbnail_path}
+                                                                    />
+                                                                </div>
+                                                            </div>
                                                             <button
                                                                 type="button"
                                                                 onClick={(event) => handleDeleteVersion(event, version.id)}
