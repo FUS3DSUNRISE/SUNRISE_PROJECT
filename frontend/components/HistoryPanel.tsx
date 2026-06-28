@@ -12,6 +12,7 @@ import {
     type PromptVersionSummary,
 } from "@/services/api";
 import { useAuthStore } from "@/state/authStore";
+import HistoryListItem from "./HistoryListItem";
 
 type HistorySortOrder = "newest" | "oldest";
 
@@ -109,14 +110,6 @@ function getStatusClass(status: string) {
     return "text-red-400";
 }
 
-function getStatusDotClass(status: string) {
-    if (status === "completed") return "bg-green-400";
-    if (status === "queued" || status === "processing" || status === "awaiting_clarification") {
-        return "bg-yellow-400";
-    }
-    return "bg-red-400";
-}
-
 function getModelLabel(item: Pick<PromptVersionSummary, "result_path" | "id">) {
     if (!item.result_path) return `#${item.id}`;
 
@@ -141,7 +134,7 @@ function sortPrompts(prompts: PromptVersionSummary[], order: HistorySortOrder) {
 }
 
 function getPromptTitle(item: PromptVersionSummary) {
-    return item.prompt || getModelLabel(item) || `Prompt ${item.id}`;
+    return item.title || item.prompt || getModelLabel(item) || `Prompt ${item.id}`;
 }
 
 function formatGeneratedAt(createdAt: string | null | undefined) {
@@ -162,6 +155,11 @@ function formatGeneratedAt(createdAt: string | null | undefined) {
             hour12: false,
         }).format(date),
     };
+}
+
+function formatHistoryTimestamp(createdAt: string | null | undefined) {
+    const generatedAt = formatGeneratedAt(createdAt);
+    return generatedAt ? `${generatedAt.date} • ${generatedAt.time}` : null;
 }
 
 function formatParametersSummary(item: PromptVersionSummary) {
@@ -197,6 +195,7 @@ export default function HistoryPanel({ activePromptId, className = "", onSelectP
             ? prompts.filter((item) => {
                 const searchableText = [
                     item.id,
+                    item.title,
                     item.prompt,
                     item.modification_command,
                     item.status,
@@ -256,6 +255,7 @@ export default function HistoryPanel({ activePromptId, className = "", onSelectP
 
                                     return {
                                         ...item,
+                                        title: detail.title,
                                         prompt: detail.prompt,
                                         result_path: detail.result_path,
                                         error_message: detail.error_message,
@@ -304,6 +304,7 @@ export default function HistoryPanel({ activePromptId, className = "", onSelectP
                 : [{
                     id: detail.id,
                     parent_prompt_id: detail.parent_prompt_id,
+                    title: detail.title,
                     prompt: detail.prompt,
                     status: detail.status,
                     result_path: detail.result_path,
@@ -361,6 +362,20 @@ export default function HistoryPanel({ activePromptId, className = "", onSelectP
             setExpandedPromptId(null);
             setVersions([]);
         }
+    };
+
+    const renameHistoryTitle = (promptId: number, title: string) => {
+        setPrompts((currentPrompts) =>
+            currentPrompts.map((item) => (
+                item.id === promptId ? { ...item, title } : item
+            ))
+        );
+
+        setVersions((currentVersions) =>
+            currentVersions.map((item) => (
+                item.id === promptId ? { ...item, title } : item
+            ))
+        );
     };
 
     const handleDeleteHistory = async (
@@ -579,117 +594,23 @@ export default function HistoryPanel({ activePromptId, className = "", onSelectP
                     {visiblePrompts.map((item) => {
                         const isExpanded = expandedPromptId === item.id;
                         const isActive = activePromptId === item.id;
-                        const generatedAt = formatGeneratedAt(item.created_at);
 
                         return (
-                            <div
-                                key={item.id}
-                                className={`group/card relative rounded-2xl border bg-white/[0.03] transition ${isActive
-                                        ? "border-[#ff8a2c]/80"
-                                        : "border-white/10 hover:bg-white/[0.05]"
-                                    }`}
-                            >
-                                <button
-                                    type="button"
-                                    onClick={() => loadVersions(item.id)}
-                                    className="block w-full cursor-pointer py-3 pl-4 pr-12 text-left"
-                                >
-                                    <div className="flex items-start justify-between gap-4">
-                                        <div className="min-w-0">
-                                            <p className="truncate text-sm font-semibold text-white">
-                                                {getPromptTitle(item)}
-                                            </p>
-                                            <p className="mt-1 text-xs text-white/40">
-                                                Prompt ID: {item.id}
-                                            </p>
-                                            {item.modification_command && (
-                                                <p className="mt-1 truncate text-xs text-white/55">
-                                                    Modification: {item.modification_command}
-                                                </p>
-                                            )}
-                                        </div>
-                                        <div className="flex items-center justify-end gap-2">
-                                            <span className={`h-2.5 w-2.5 rounded-full ${getStatusDotClass(item.status)}`} />
-                                            <span className={`text-xs font-medium capitalize ${getStatusClass(item.status)}`}>
-                                                {item.status.replaceAll("_", " ")}
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    <div className="mt-2 flex items-center justify-between gap-3">
-                                        {generatedAt ? (
-                                            <div className="flex min-w-0 items-center gap-3 whitespace-nowrap text-[11px] text-white/40">
-                                                <span className="inline-flex shrink-0 items-center gap-1">
-                                                    <svg
-                                                        aria-hidden="true"
-                                                        viewBox="0 0 24 24"
-                                                        className="h-3.5 w-3.5"
-                                                        fill="none"
-                                                        stroke="currentColor"
-                                                        strokeLinecap="round"
-                                                        strokeLinejoin="round"
-                                                        strokeWidth="2"
-                                                    >
-                                                        <path d="M8 2v4" />
-                                                        <path d="M16 2v4" />
-                                                        <rect x="3" y="4" width="18" height="18" rx="2" />
-                                                        <path d="M3 10h18" />
-                                                    </svg>
-                                                    {generatedAt.date}
-                                                </span>
-                                                <span className="inline-flex shrink-0 items-center gap-1">
-                                                    <svg
-                                                        aria-hidden="true"
-                                                        viewBox="0 0 24 24"
-                                                        className="h-3.5 w-3.5"
-                                                        fill="none"
-                                                        stroke="currentColor"
-                                                        strokeLinecap="round"
-                                                        strokeLinejoin="round"
-                                                        strokeWidth="2"
-                                                    >
-                                                        <circle cx="12" cy="12" r="9" />
-                                                        <path d="M12 7v5l3 2" />
-                                                    </svg>
-                                                    {generatedAt.time}
-                                                </span>
-                                            </div>
-                                        ) : (
-                                            <span className="text-[11px] text-white/30">Date unavailable</span>
-                                        )}
-                                        <span className="shrink-0 text-xs text-white/35">
-                                            {isExpanded ? "Hide versions" : "Versions"}
-                                        </span>
-                                    </div>
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={(event) => handleDeleteHistory(event, item.id)}
-                                    disabled={deletingHistoryId === item.id}
-                                    className="absolute right-3 top-[4px] inline-flex h-8 w-8 items-center justify-center text-white/80 opacity-0 transition hover:text-white focus-visible:opacity-100 disabled:cursor-wait disabled:opacity-60 group-hover/card:opacity-100"
-                                    aria-label={`Delete history card ${item.id}`}
-                                    title="Delete history card"
-                                >
-                                    <svg
-                                        aria-hidden="true"
-                                        viewBox="0 0 24 24"
-                                        className="h-3.5 w-3.5"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth="2"
-                                    >
-                                        <path d="M3 6h18" />
-                                        <path d="M8 6V4h8v2" />
-                                        <path d="M19 6l-1 14H6L5 6" />
-                                        <path d="M10 11v5" />
-                                        <path d="M14 11v5" />
-                                    </svg>
-                                </button>
+                            <div key={item.id} className="space-y-2">
+                                <HistoryListItem
+                                    title={getPromptTitle(item)}
+                                    timestamp={formatHistoryTimestamp(item.created_at)}
+                                    status={item.status}
+                                    isActive={isActive}
+                                    isExpanded={isExpanded}
+                                    isDeleting={deletingHistoryId === item.id}
+                                    onOpen={() => loadVersions(item.id)}
+                                    onRename={(title) => renameHistoryTitle(item.id, title)}
+                                    onDelete={(event) => handleDeleteHistory(event, item.id)}
+                                />
 
                                 {isExpanded && (
-                                    <div className="border-t border-white/10 px-4 pb-4 pt-3">
+                                    <div className="rounded-lg border border-white/10 bg-white/[0.02] px-3 pb-3 pt-3">
                                         {loadingVersions ? (
                                             <p className="text-sm text-white/45">Loading versions...</p>
                                         ) : (
