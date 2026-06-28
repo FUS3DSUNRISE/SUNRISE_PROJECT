@@ -363,6 +363,7 @@ def _get_thumbnail_target(prompt: PromptRequest) -> tuple[PromptRequest, int]:
 def _build_thumbnail_render_script(model_path: str, thumbnail_path: str) -> str:
     return textwrap.dedent(f"""
         import os
+        import math
         import bpy
         from mathutils import Vector
 
@@ -387,10 +388,12 @@ def _build_thumbnail_render_script(model_path: str, thumbnail_path: str) -> str:
         if not mesh_objects:
             raise RuntimeError("No mesh objects available for thumbnail generation")
 
+        depsgraph = bpy.context.evaluated_depsgraph_get()
         bounds = []
         for obj in mesh_objects:
-            for corner in obj.bound_box:
-                bounds.append(obj.matrix_world @ Vector(corner))
+            evaluated_obj = obj.evaluated_get(depsgraph)
+            for corner in evaluated_obj.bound_box:
+                bounds.append(evaluated_obj.matrix_world @ Vector(corner))
 
         min_corner = Vector((
             min(point.x for point in bounds),
@@ -404,26 +407,37 @@ def _build_thumbnail_render_script(model_path: str, thumbnail_path: str) -> str:
         ))
 
         center = (min_corner + max_corner) / 2
+        size = max_corner - min_corner
+        radius = max(size.length / 2.0, max(size.x, size.y, size.z) * 0.6, 0.5)
 
         camera_data = bpy.data.cameras.new("ThumbnailCamera")
         camera = bpy.data.objects.new("ThumbnailCamera", camera_data)
         scene.collection.objects.link(camera)
-        camera.location = center + Vector((6.8, -6.8, 4.6))
-        camera.data.lens = 45
+        camera.data.lens = 50
+        camera.data.sensor_width = 36
+        camera_offset = Vector((1.9, -1.9, 1.25)).normalized()
+        camera_distance = (radius / math.tan(camera.data.angle / 2.0)) * 1.35
+        camera.location = center + camera_offset * camera_distance
         camera.rotation_euler = (center - camera.location).to_track_quat("-Z", "Y").to_euler()
+        camera.data.clip_start = max(0.01, radius * 0.01)
+        camera.data.clip_end = max(100.0, radius * 100.0)
         scene.camera = camera
 
         key_light_data = bpy.data.lights.new(name="ThumbnailKeyLight", type="AREA")
-        key_light_data.energy = 3000
+        key_light_data.energy = 2500 + radius * 250
+        key_light_data.shape = "DISK"
         key_light = bpy.data.objects.new(name="ThumbnailKeyLight", object_data=key_light_data)
         scene.collection.objects.link(key_light)
-        key_light.location = center + Vector((5.0, 4.2, 7.0))
+        key_light.location = center + Vector((1.6, 1.2, 1.8)).normalized() * (radius * 2.6)
+        key_light.rotation_euler = (center - key_light.location).to_track_quat("-Z", "Y").to_euler()
 
         fill_light_data = bpy.data.lights.new(name="ThumbnailFillLight", type="AREA")
-        fill_light_data.energy = 1200
+        fill_light_data.energy = 900 + radius * 120
+        fill_light_data.shape = "DISK"
         fill_light = bpy.data.objects.new(name="ThumbnailFillLight", object_data=fill_light_data)
         scene.collection.objects.link(fill_light)
-        fill_light.location = center + Vector((-4.6, -3.0, 4.0))
+        fill_light.location = center + Vector((-1.8, -1.4, 1.1)).normalized() * (radius * 2.4)
+        fill_light.rotation_euler = (center - fill_light.location).to_track_quat("-Z", "Y").to_euler()
 
         if scene.world is None:
             scene.world = bpy.data.worlds.new("ThumbnailWorld")
@@ -471,7 +485,8 @@ def _build_generation_prompt(prompt: PromptRequest, parameters: dict) -> str:
 def _build_imported_asset_modification_prompt(
     app,
     prompt: PromptRequest,
-    imported_asset_id: int
+    imported_asset_id: int,
+    parameters: dict
 ) -> str:
     imported_asset = ImportedAsset.query.get(imported_asset_id)
 
@@ -486,6 +501,27 @@ def _build_imported_asset_modification_prompt(
         raise LLMError(f"Imported asset file not found: {input_asset_path}")
 
     modification_command = prompt.modification_command or ""
+    target_parameters = ""
+
+    if parameters:
+        try:
+            validated_params = Parameters(**parameters)
+            target_parameters = (
+                "EXACT TARGET PARAMETERS:\n"
+                f"- Size: width={validated_params.size.width}m, height={validated_params.size.height}m, depth={validated_params.size.depth}m\n"
+                f"- Geometry: complexity={validated_params.geometry.complexity}, smoothness={validated_params.geometry.smoothness}\n"
+                f"- Material: type={validated_params.material.material_type}, roughness={validated_params.material.roughness}, metallic={validated_params.material.metallic}\n\n"
+                "Hard requirements:\n"
+                "- The final model must be resized to match the requested dimensions as closely as possible.\n"
+                "- If the command also changes appearance, apply those changes after the resize.\n"
+                "- Do not ignore the target size just because the source asset already has a similar shape.\n\n"
+            )
+        except Exception as exc:
+            logger.warning(
+                "Parameter validation failed in imported asset prompt for prompt_id=%s: %s",
+                prompt.id,
+                exc
+            )
 
     return (
         "Modify the existing imported 3D asset using Blender Python.\n"
@@ -498,12 +534,16 @@ def _build_imported_asset_modification_prompt(
 
         f"MODIFICATION COMMAND:\n{modification_command}\n\n"
 
+        f"{target_parameters}"
+
         "PLAN FIRST (CHAIN OF THOUGHT): Before calling any functions or writing logic, write a block of Python comments (starting with `#`) to act as your modification blueprint. Describe exactly which meshes or materials you plan to select and what transformations (scale, location, etc.) you will apply to satisfy the command.\n\n"
 
         "Required behavior:\n"
         "- Import the existing asset from the file path above.\n"
         "- Keep the imported asset structure.\n"
         "- Modify only existing mesh objects using transformations (e.g., obj.scale, obj.location, obj.rotation_euler) or material changes.\n"
+        "- When target parameters are provided, use them as hard constraints for size and proportions.\n"
+        "- Prefer non-destructive scaling of the imported mesh to satisfy requested width, height, and depth.\n"
         "- NEVER create new objects (do not use make_box, make_cylinder, make_cone, make_torus, etc.) unless explicitly commanded to ADD a new part.\n"
         "- Do not apply materials to lights, cameras, empties or non-mesh objects.\n"
         "- When iterating over objects, always check: if obj.type == 'MESH'.\n"
@@ -619,7 +659,8 @@ def process_prompt_task(
                 human_prompt = _build_imported_asset_modification_prompt(
                     app=app,
                     prompt=prompt,
-                    imported_asset_id=imported_asset_id
+                    imported_asset_id=imported_asset_id,
+                    parameters=parameters,
                 )
 
             elif fast_track_id:

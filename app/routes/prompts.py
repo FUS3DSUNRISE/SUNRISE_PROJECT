@@ -12,6 +12,7 @@ import csv
 import io
 import os
 import json
+from pathlib import Path
 import config
 
 
@@ -174,6 +175,47 @@ def delete_prompt_records(prompts):
         db.session.delete(prompt)
 
 
+def _safe_delete_prompt_media(relative_path: str | None) -> None:
+    if not relative_path:
+        return
+
+    project_root = Path(current_app.root_path).resolve().parent
+    static_models_root = (project_root / "static" / "models").resolve()
+
+    path_candidate = Path(relative_path)
+    if path_candidate.is_absolute():
+        candidate = path_candidate.resolve()
+    else:
+        normalized_path = relative_path.replace("\\", "/")
+        if normalized_path.startswith("/"):
+            normalized_path = normalized_path[1:]
+        candidate = (project_root / normalized_path).resolve()
+
+    try:
+        if not candidate.exists():
+            return
+
+        if not candidate.is_relative_to(static_models_root):
+            current_app.logger.warning(
+                "Skipped deleting prompt media outside static/models: %s",
+                candidate,
+            )
+            return
+
+        candidate.unlink()
+    except OSError as exc:
+        current_app.logger.warning(
+            "Could not remove prompt media '%s': %s",
+            relative_path,
+            exc,
+        )
+
+
+def _cleanup_prompt_media(prompt: PromptRequest) -> None:
+    _safe_delete_prompt_media(prompt.result_path)
+    _safe_delete_prompt_media(prompt.thumbnail_path)
+
+
 @prompts_bp.route("/<int:id>", methods=["DELETE"])
 def delete_prompt_version(id):
     user_id = session.get("user_id")
@@ -205,6 +247,7 @@ def delete_prompt_version(id):
         )
 
     db.session.commit()
+    _cleanup_prompt_media(prompt)
 
     return jsonify({
         "message": "Prompt version deleted",
@@ -231,6 +274,8 @@ def delete_prompt_history(id):
 
     delete_prompt_records(prompt_tree)
     db.session.commit()
+    for item in prompt_tree:
+        _cleanup_prompt_media(item)
 
     return jsonify({
         "message": "Prompt history deleted",

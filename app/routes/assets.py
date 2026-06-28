@@ -6,6 +6,7 @@ from app.extensions import db
 from app.models.imported_asset import ImportedAsset
 from app.services.asset_metadata_service import AssetMetadataService
 from app.models.prompt import PromptRequest, PromptStatus
+from app.services.prompt_service import Parameters
 
 
 assets_bp = Blueprint("assets", __name__)
@@ -173,14 +174,23 @@ def modify_imported_asset(id):
 
     data = request.get_json() or {}
     command = data.get("command")
+    incoming_parameters = data.get("parameters")
 
-    if not command:
-        return jsonify({"error": "Missing modification command"}), 400
+    if not command and not incoming_parameters:
+        return jsonify({"error": "Missing modification command or parameters"}), 400
+
+    validated_params = None
+    if incoming_parameters:
+        try:
+            params_obj = Parameters(**incoming_parameters)
+            validated_params = params_obj.dict()
+        except Exception as exc:
+            return jsonify({"error": str(exc)}), 400
 
     new_prompt = PromptRequest(
         prompt_text=f"Modify imported asset: {asset.original_filename}",
         modification_command=command,
-        parameters=None,
+        parameters=validated_params,
         status=PromptStatus.QUEUED,
         user_id=user_id,
         imported_asset_id=asset.id
@@ -193,7 +203,7 @@ def modify_imported_asset(id):
 
     process_prompt_task.delay(
         prompt_id=new_prompt.id,
-        parameters={},
+        parameters=validated_params or {},
         imported_asset_id=asset.id
     )
 
