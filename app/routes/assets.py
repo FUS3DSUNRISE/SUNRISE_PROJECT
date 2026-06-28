@@ -6,6 +6,7 @@ from app.extensions import db
 from app.models.imported_asset import ImportedAsset
 from app.services.asset_metadata_service import AssetMetadataService
 from app.models.prompt import PromptRequest, PromptStatus
+from app.services.prompt_title_service import generate_prompt_title
 
 
 assets_bp = Blueprint("assets", __name__)
@@ -199,6 +200,7 @@ def modify_imported_asset(id):
 
     return jsonify({
         "id": new_prompt.id,
+        "title": generate_prompt_title(new_prompt.prompt_text),
         "status": new_prompt.status.value,
         "message": "Imported asset modification task started",
         "imported_asset_id": asset.id,

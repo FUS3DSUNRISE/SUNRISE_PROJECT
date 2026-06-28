@@ -497,6 +497,7 @@ async function analyzeAssetBlob(blob: Blob, fileName: string): Promise<AssetMeta
 
 export type PromptResponse = {
     id: number;
+    title?: string;
     prompt: string;
     status: string;
     result_path: string | null;
@@ -516,6 +517,7 @@ export type PromptResponse = {
 export type PromptVersionSummary = {
     id: number;
     parent_prompt_id?: number | null;
+    title?: string;
     prompt?: string;
     status: string;
     result_path: string | null;
@@ -607,6 +609,7 @@ export async function createPrompt(payload: GeneratePayload): Promise<PromptResp
 
     return {
         id: data.id,
+        title: data.title,
         prompt: data.prompt,
         status: data.status,
         result_path: data.result_path ?? null,
@@ -633,6 +636,7 @@ export async function getPrompt(id: number): Promise<PromptResponse> {
 
     return withCachedParameters({
         id: data.id,
+        title: data.title,
         prompt: data.prompt,
         status: data.status,
         result_path: data.result_path ?? null,

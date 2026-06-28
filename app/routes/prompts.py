@@ -4,6 +4,7 @@ from app.models.prompt import PromptRequest, PromptStatus
 from app.models.user import User
 from app.services.prompt_service import Parameters
 from app.services.prompt_service import PromptService
+from app.services.prompt_title_service import generate_prompt_title
 from langchain_openai import ChatOpenAI
 from app.models.feedback import GenerationFeedback, FeedbackRating
 from datetime import timezone
@@ -87,6 +88,7 @@ def create_prompt():
 
         return jsonify({
             "id": prompt.id,
+            "title": generate_prompt_title(prompt.prompt_text),
             "status": "clarify",
             "message": final_reason,
             "created_at": iso_utc(prompt.created_at)
@@ -109,6 +111,7 @@ def create_prompt():
 
     return jsonify({
         "id": prompt.id,
+        "title": generate_prompt_title(prompt.prompt_text),
         "prompt": prompt.prompt_text,
         "status": prompt.status.value,
         "user_id": prompt.user_id,
@@ -130,6 +133,7 @@ def collect_version_history(prompt):
         versions.append({
             "id": node.id,
             "parent_prompt_id": node.parent_prompt_id,
+            "title": generate_prompt_title(node.prompt_text),
             "prompt": node.prompt_text,
             "modification_command": node.modification_command,
             "status": node.status.value,
@@ -256,6 +260,7 @@ def get_prompt(id):
 
     return jsonify({
         "id": prompt.id,
+        "title": generate_prompt_title(prompt.prompt_text),
         "prompt": prompt.prompt_text,
         "status": prompt.status.value,
         "result_path": prompt.result_path,
@@ -290,6 +295,7 @@ def get_my_prompts():
 
         prompts.append({
             "id": prompt.id,
+            "title": generate_prompt_title(prompt.prompt_text),
             "prompt": prompt.prompt_text,
             "status": prompt.status.value,
             "result_path": prompt.result_path,
@@ -435,6 +441,7 @@ def modify_prompt(id):
 
     return jsonify({
         "id": new_prompt.id,
+        "title": generate_prompt_title(new_prompt.prompt_text),
         "status": new_prompt.status.value,
         "message": "Modification started",
         "parent_id": original_prompt.id,
